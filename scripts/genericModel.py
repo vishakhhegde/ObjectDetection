@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 import os, sys
-from tensorflow.python.platform import gfile
 
 # model_order is the name of the model used
 # network_id
@@ -14,7 +13,7 @@ from tensorflow.python.platform import gfile
 # class_count
 
 class generic_model():
-	def __init__(self, model_order, network_id, image_dir, input_ckpt_path, output_ckpt_dir, input_graph_path, output_graph_path, sess, class_count):
+	def __init__(self, model_order, network_id, image_dir, input_ckpt_path, output_ckpt_dir, input_graph_path, output_graph_path, class_count):
 		self.model_order = model_order
 		self.network_id = network_id
 		self.image_dir = image_dir
