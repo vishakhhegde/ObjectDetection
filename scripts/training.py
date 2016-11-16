@@ -34,30 +34,14 @@ batch_size = 50
 # Fire up a session
 sess = tf.InteractiveSession()
 
-def build_graph_for_target():
+################## Initialise a model ########################
 
-	# Initialise a model
-	Model = generic_model(model_order, network_id, image_dir, input_ckpt_path, output_ckpt_dir, input_graph_path, output_graph_path, class_count)
+Model = generic_model(model_order, network_id, image_dir, input_ckpt_path, output_ckpt_dir, input_graph_path, output_graph_path, class_count)
+Model.build_basic_graph(sess)
+cross_entropy = Model.build_graph_for_target(sess)
 
-	# Build the graph and load the weights
-	Model.build_basic_graph(sess)
+##############################################################
 
-	# This is how the ground truth is fed
-	ground_truth_tensor = tf.placeholder(tf.float32, shape=(None, class_count),name=GROUND_TRUTH_TENSOR_NAME)
-	
-	# Get the relevant tensor from the graph
-	inception_feature_tensor = sess.graph.get_tensor_by_name(ensure_name_has_port(TENSOR_TO_BE_GOT))
-
-	# Add final layer for classification
-	logits, _, _ = add_last_layer(inception_feature_tensor, class_count)
-	final_tensor = tf.nn.softmax(logits, name=FINAL_TENSOR_NAME)
-
-	cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(final_tensor, ground_truth_tensor))
-	train_step = tf.train.AdamOptimizer(1e-1).minimize(cross_entropy)
-	sess.run(tf.initialize_all_variables())
-	return cross_entropy
-
-cross_entropy = build_graph_for_target()
 
 # Load dataset to be fed in
 image_path = load_dataset(image_dir)

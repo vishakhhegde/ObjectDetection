@@ -21,18 +21,3 @@ def add_last_layer(final_features, output_dim):
 	layer_biases = bias_variable([output_dim])
 	logits = tf.matmul(final_features, layer_weights) + layer_biases
 	return logits, layer_weights, layer_biases
-
-'''
-def add_last_layer(final_features, output_dim):
-	with tf.name_scope('weights'):
-		feature_size = int(final_features.get_shape()[1])
-		layer_weights = tf.Variable(
-		tf.truncated_normal([feature_size, output_dim], stddev=0.001), name='final_weights')
-	with tf.name_scope('biases'):
-		layer_biases = tf.Variable(tf.zeros([output_dim]), name='final_biases')
-	with tf.name_scope('Wx_plus_b'):
-		logits = tf.matmul(final_features, layer_weights,
-					name='final_matmul') + layer_biases
-		tf.histogram_summary('pre_activations', logits)
-	return logits, layer_weights, layer_biases
-'''
