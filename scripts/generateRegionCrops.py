@@ -13,6 +13,15 @@ cropped_image_dir = os.path.join(MAINFILE_PATH, 'VOCCroppedImages')
 xmlFiles_dir = os.path.join(MAINFILE_PATH, 'VOCdevkit', 'VOC2012', 'Annotations')
 # All bounding boxes should be of the form [ymin, xmin, ymax, xmax]
 
+def get_bbox_max_and_min(origBbox):
+	orig_xmax = int(origBbox['bndbox']['xmax'])
+	orig_xmin = int(origBbox['bndbox']['xmin'])
+	orig_ymax = int(origBbox['bndbox']['ymax'])
+	orig_ymin = int(origBbox['bndbox']['ymin'])
+	# This is fixed
+	orig_bbox = (orig_ymin, orig_xmin, orig_ymax, orig_xmax)
+	return orig_bbox
+
 def get_orig_bbox(xml_filepath):
 	xml_file = open(xml_filepath, 'r')
 	objDict_list = xmltodict.parse(xml_file)['annotation']['object']
@@ -40,19 +49,14 @@ def find_IoU(box1, box2):
 		IoU = float(intersection)/float(union)
 		return IoU
 
-def is_object(bbox, origBbox_list, IoU_threshold = 0.5):
+def is_object(bbox, origBbox_list, IoU_threshold = 0.7):
 	# This is fixed
 	ymin, xmin, ymax, xmax = bbox
 	# This is fixed
 	bbox = (int(ymin), int(xmin), int(ymax), int(xmax))
 	object_switch = 0
 	for origBbox in origBbox_list:
-		orig_xmax = int(origBbox['bndbox']['xmax'])
-		orig_xmin = int(origBbox['bndbox']['xmin'])
-		orig_ymax = int(origBbox['bndbox']['ymax'])
-		orig_ymin = int(origBbox['bndbox']['ymin'])
-		# This is fixed
-		orig_bbox = (orig_ymin, orig_xmin, orig_ymax, orig_xmax)
+		orig_bbox = get_bbox_max_and_min(origBbox)
 		IoU = find_IoU(orig_bbox, bbox)
 		if IoU > IoU_threshold:
 			object_switch = 1
@@ -76,13 +80,7 @@ def crop_all_images_in_dict(bbox_dictionary, image_dir, cropped_image_dir, xmlFi
 		orig_img = cv2.imread(image_path)
 
 		for j, origBbox in enumerate(origBbox_list):
-			orig_xmax = int(origBbox['bndbox']['xmax'])
-			orig_xmin = int(origBbox['bndbox']['xmin'])
-			orig_ymax = int(origBbox['bndbox']['ymax'])
-			orig_ymin = int(origBbox['bndbox']['ymin'])
-
-			# This is fixed
-			orig_bbox = orig_bbox = (orig_ymin, orig_xmin, orig_ymax, orig_xmax)
+			orig_bbox = get_bbox_max_and_min(origBbox)
 			cropped_img = crop_single_image(orig_img, orig_bbox)
 			cropped_img_name = image_name + '_orig_' + str(j) + '.jpg'
 			cv2.imwrite(os.path.join(cropped_image_dir, cropped_img_name), cropped_img)
@@ -99,15 +97,17 @@ def crop_all_images_in_dict(bbox_dictionary, image_dir, cropped_image_dir, xmlFi
 				print cropped_img_name, object_class
 
 #######################################################################################
+def main():
+	# Get a dictionary of bounding boxes
+	bbox_dictionary = get_regions_dictionary('/Users/vishakhhegde/ObjectDetection/selective_search_data/voc_2012_train.mat',image_dir)
 
-# Get a dictionary of bounding boxes
-bbox_dictionary = get_regions_dictionary('/Users/vishakhhegde/ObjectDetection/selective_search_data/voc_2012_train.mat',image_dir)
-
-# Crop all images
-crop_all_images_in_dict(bbox_dictionary, image_dir, cropped_image_dir, xmlFiles_dir)
+	# Crop all images
+	crop_all_images_in_dict(bbox_dictionary, image_dir, cropped_image_dir, xmlFiles_dir)
 
 ######################################################################################
 
-
+if __name__ == "__main__":
+	main()
+	print 'Finished obtaining region proposals for all images'
 
 
