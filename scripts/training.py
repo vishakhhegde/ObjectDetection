@@ -16,8 +16,8 @@ from PIL import Image
 model_order = 'inceptionResnet'
 network_id = '1'
 DESKTOP = '/Users/vishakhhegde/Desktop/'
-image_dir = os.path.join(DESKTOP, 'VOCdevkit', 'VOC2012', 'JPEGImages')
 MAINFILE_PATH = '/Users/vishakhhegde/ObjectDetection'
+image_dir = os.path.join(MAINFILE_PATH, 'VOCdevkit', 'VOC2012', 'JPEGImages')
 input_ckpt_path = os.path.join(MAINFILE_PATH, 'models', 'inception_resnet_v2_2016_08_30.ckpt')
 output_ckpt_dir = os.path.join(MAINFILE_PATH, 'saved_networks')
 input_graph_path = os.path.join(MAINFILE_PATH, 'models', 'inception_resnet_v2_metaGraph.meta')
@@ -30,19 +30,18 @@ FINAL_TENSOR_NAME = 'final_tensor'
 resized_input_tensor_name = 'ResizeBilinear'
 
 batch_size = 50
+##################################################################################
 
 # Fire up a session
 sess = tf.InteractiveSession()
 
-################## Initialise a model ########################
+################## Initialise a model ############################################
 
 Model = generic_model(model_order, network_id, image_dir, input_ckpt_path, output_ckpt_dir, input_graph_path, output_graph_path, class_count)
 Model.build_basic_graph(sess)
 cross_entropy = Model.build_graph_for_target(sess)
 
-##############################################################
-
-
+##################################################################################
 # Load dataset to be fed in
 image_path = load_dataset(image_dir)
 num_images = len(image_path)
