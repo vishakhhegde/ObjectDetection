@@ -55,12 +55,23 @@ def is_object(bbox, origBbox_list, IoU_threshold = 0.7):
 	# This is fixed
 	bbox = (int(ymin), int(xmin), int(ymax), int(xmax))
 	object_switch = 0
+	
+	nameList = []
+	IoUList = []
+
 	for origBbox in origBbox_list:
 		orig_bbox = get_bbox_max_and_min(origBbox)
 		IoU = find_IoU(orig_bbox, bbox)
-		if IoU > IoU_threshold:
-			object_switch = 1
-			return origBbox['name'], object_switch
+		IoUList.append(IoU)
+		nameList.append(origBbox['name'])
+
+	IoU = max(IoUList)
+	objectName = nameList[IoUList.index(IoU)]
+
+	if IoU > IoU_threshold:
+		object_switch = 1
+		return objectName, object_switch
+
 	return 'background', object_switch
 
 def crop_single_image(orig_img, bbox):
