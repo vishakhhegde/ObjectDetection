@@ -11,6 +11,7 @@ image_dir = os.path.join(MAINFILE_PATH, 'VOCdevkit', 'VOC2012', 'JPEGImages')
 cropped_image_dir = os.path.join(MAINFILE_PATH, 'VOCCroppedImages')
 
 xmlFiles_dir = os.path.join(MAINFILE_PATH, 'VOCdevkit', 'VOC2012', 'Annotations')
+# All bounding boxes should be of the form [ymin, xmin, ymax, xmax]
 
 def get_orig_bbox(xml_filepath):
 	xml_file = open(xml_filepath, 'r')
@@ -20,10 +21,11 @@ def get_orig_bbox(xml_filepath):
 	return objDict_list
 
 def find_IoU(box1, box2):
-	inter_xmax = min(box1[0], box2[0])
+	# This is fixed
+	inter_ymin = max(box1[0], box2[0])
 	inter_xmin = max(box1[1], box2[1])
 	inter_ymax = min(box1[2], box2[2])
-	inter_ymin = max(box1[3], box2[3])
+	inter_xmax = min(box1[3], box2[3])
 
 	check1 = inter_xmax - inter_xmin
 	check2 = inter_ymax - inter_ymin
@@ -32,22 +34,25 @@ def find_IoU(box1, box2):
 		return 0
 	else:
 		intersection = (inter_xmax - inter_xmin + 1)*(inter_ymax - inter_ymin + 1)
-		box1_area = (box1[0] - box1[1] + 1)*(box1[2] - box1[3] + 1)
-		box2_area = (box2[0] - box2[1] + 1)*(box2[2] - box2[3] + 1)
+		box1_area = (box1[3] - box1[1] + 1)*(box1[2] - box1[0] + 1)
+		box2_area = (box2[3] - box2[1] + 1)*(box2[2] - box2[0] + 1)
 		union = box1_area + box2_area - intersection
 		IoU = float(intersection)/float(union)
 		return IoU
 
-def is_object(bbox, origBbox_list, IoU_threshold = 0.8):
-	xmax, xmin, ymax, ymin = bbox
-	bbox = (int(xmax), int(xmin), int(ymax), int(ymin))
+def is_object(bbox, origBbox_list, IoU_threshold = 0.5):
+	# This is fixed
+	ymin, xmin, ymax, xmax = bbox
+	# This is fixed
+	bbox = (int(ymin), int(xmin), int(ymax), int(xmax))
 	object_switch = 0
 	for origBbox in origBbox_list:
 		orig_xmax = int(origBbox['bndbox']['xmax'])
 		orig_xmin = int(origBbox['bndbox']['xmin'])
 		orig_ymax = int(origBbox['bndbox']['ymax'])
 		orig_ymin = int(origBbox['bndbox']['ymin'])
-		orig_bbox = (orig_xmax, orig_xmin, orig_ymax, orig_ymin)
+		# This is fixed
+		orig_bbox = (orig_ymin, orig_xmin, orig_ymax, orig_xmax)
 		IoU = find_IoU(orig_bbox, bbox)
 		if IoU > IoU_threshold:
 			object_switch = 1
@@ -55,8 +60,9 @@ def is_object(bbox, origBbox_list, IoU_threshold = 0.8):
 	return 'background', object_switch
 
 def crop_single_image(orig_img, bbox):
-	x_max,x_min,y_max,y_min = bbox
-	cropped_img = orig_img[x_min:x_max, y_min:y_max]
+	# This is fixed
+	ymin, xmin, ymax, xmax = bbox
+	cropped_img = orig_img[ymin:ymax+1, xmin:xmax+1]
 	return cropped_img
 
 def crop_all_images_in_dict(bbox_dictionary, image_dir, cropped_image_dir, xmlFiles_dir):
@@ -74,11 +80,12 @@ def crop_all_images_in_dict(bbox_dictionary, image_dir, cropped_image_dir, xmlFi
 			orig_xmin = int(origBbox['bndbox']['xmin'])
 			orig_ymax = int(origBbox['bndbox']['ymax'])
 			orig_ymin = int(origBbox['bndbox']['ymin'])
-			orig_bbox = orig_bbox = (orig_xmax, orig_xmin, orig_ymax, orig_ymin)
+
+			# This is fixed
+			orig_bbox = orig_bbox = (orig_ymin, orig_xmin, orig_ymax, orig_xmax)
 			cropped_img = crop_single_image(orig_img, orig_bbox)
 			cropped_img_name = image_name + '_orig_' + str(j) + '.jpg'
 			cv2.imwrite(os.path.join(cropped_image_dir, cropped_img_name), cropped_img)
-			sleep(0.01)
 			print cropped_img_name, origBbox['name']
 
 		for i, bbox in enumerate(bbox_dictionary[image_name]):
@@ -88,7 +95,6 @@ def crop_all_images_in_dict(bbox_dictionary, image_dir, cropped_image_dir, xmlFi
 			# Now we actually need to crop the image
 			cropped_img = crop_single_image(orig_img, bbox)
 			cv2.imwrite(os.path.join(cropped_image_dir, cropped_img_name), cropped_img)
-			sleep(0.01)
 			if object_switch > 0:
 				print cropped_img_name, object_class
 
