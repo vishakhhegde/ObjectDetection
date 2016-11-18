@@ -4,11 +4,16 @@ import tensorflow as tf
 from utils import *
 import xmltodict
 from time import sleep
+from class_dictionary import class_dictionary
 
 
 MAINFILE_PATH = '/Users/vishakhhegde/ObjectDetection'
 image_dir = os.path.join(MAINFILE_PATH, 'VOCdevkit', 'VOC2012', 'JPEGImages')
-cropped_image_dir = os.path.join(MAINFILE_PATH, 'VOCCroppedImages')
+
+negative_cropped_image_dir = os.path.join(MAINFILE_PATH, 'VOCNegativeCrops')
+positive_cropped_image_dir = os.path.join(MAINFILE_PATH, 'VOCPositiveCrops')
+ensure_dir_exists(negative_cropped_image_dir)
+ensure_dir_exists(positive_cropped_image_dir)
 
 xmlFiles_dir = os.path.join(MAINFILE_PATH, 'VOCdevkit', 'VOC2012', 'Annotations')
 # All bounding boxes should be of the form [ymin, xmin, ymax, xmax]
@@ -80,9 +85,7 @@ def crop_single_image(orig_img, bbox):
 	cropped_img = orig_img[ymin:ymax+1, xmin:xmax+1]
 	return cropped_img
 
-def crop_all_images_in_dict(bbox_dictionary, image_dir, cropped_image_dir, xmlFiles_dir):
-	ensure_dir_exists(cropped_image_dir)
-	existing_cropped_image_list = os.listdir(cropped_image_dir)
+def crop_all_images_in_dict(bbox_dictionary, image_dir, positive_cropped_image_dir, negative_cropped_image_dir, xmlFiles_dir):
 	for image_name in bbox_dictionary:
 		xml_filepath = os.path.join(xmlFiles_dir, image_name + '.xml')
 		origBbox_list = get_orig_bbox(xml_filepath)
@@ -94,18 +97,20 @@ def crop_all_images_in_dict(bbox_dictionary, image_dir, cropped_image_dir, xmlFi
 			orig_bbox = get_bbox_max_and_min(origBbox)
 			cropped_img = crop_single_image(orig_img, orig_bbox)
 			cropped_img_name = image_name + '_orig_' + str(j) + '.jpg'
-			cv2.imwrite(os.path.join(cropped_image_dir, cropped_img_name), cropped_img)
-			print cropped_img_name, origBbox['name']
+			cv2.imwrite(os.path.join(positive_cropped_image_dir, cropped_img_name), cropped_img)
 
 		for i, bbox in enumerate(bbox_dictionary[image_name]):
 			object_class, object_switch = is_object(bbox, origBbox_list)			
 			cropped_img_name = image_name + '_' + str(i) + '.jpg'
+			if object_class is not 'background':
+				print object_class, class_dictionary[object_class]
 
 			# Now we actually need to crop the image
 			cropped_img = crop_single_image(orig_img, bbox)
-			cv2.imwrite(os.path.join(cropped_image_dir, cropped_img_name), cropped_img)
-			if object_switch > 0:
-				print cropped_img_name, object_class
+			if object_switch:
+				cv2.imwrite(os.path.join(positive_cropped_image_dir, cropped_img_name), cropped_img)
+			else:
+				cv2.imwrite(os.path.join(negative_cropped_image_dir, cropped_img_name), cropped_img)
 
 #######################################################################################
 def main():
@@ -113,7 +118,7 @@ def main():
 	bbox_dictionary = get_regions_dictionary('/Users/vishakhhegde/ObjectDetection/selective_search_data/voc_2012_train.mat',image_dir)
 
 	# Crop all images
-	crop_all_images_in_dict(bbox_dictionary, image_dir, cropped_image_dir, xmlFiles_dir)
+	crop_all_images_in_dict(bbox_dictionary, image_dir, positive_cropped_image_dir, negative_cropped_image_dir, xmlFiles_dir)
 
 ######################################################################################
 
