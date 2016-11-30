@@ -43,3 +43,12 @@ def spherical_hinge_loss(feature_vec, labels=None, scope=None):
 	labels = tf.sub(2 * tf.sign(labels), all_ones)
 	norm_squared = tf.reduce_sum(tf.square(feature_vec))
 	return tf.nn.relu(tf.mul(labels,tf.sub(all_ones, norm_squared)))
+
+def knowledge_distillation_loss(soft_new, soft_old=None, T=2):
+	all_T = tf.scalar_mul(1/float(T), tf.ones_like(soft_old))
+	yP_new = tf.pow(soft_new,all_T)
+	yP_old = tf.pow(soft_old,all_T)
+	y_new = tf.mul(tf.reciprocal(tf.reduce_sum(yP_new)),yP_new)
+	y_old = tf.mul(tf.reciprocal(tf.reduce_sum(yP_old)),yP_old)
+	return tf.negative(tf.reduce_sum(tf.mul(y_old, tf.log(y_new))))
+
