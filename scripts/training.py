@@ -39,7 +39,7 @@ sess = tf.InteractiveSession()
 
 Model = generic_model(model_order, network_id, image_dir, input_ckpt_path, output_ckpt_dir, input_graph_path, output_graph_path, class_count)
 Model.build_basic_graph(sess)
-cross_entropy = Model.build_graph_for_target(sess)
+cross_entropy, sphere_loss = Model.build_graph_for_target(sess)
 
 ##################################################################################
 # Load dataset to be fed in
@@ -63,6 +63,6 @@ for batch_iter in range(0, num_images, batch_size):
 		label_inputs_one_hot[image_iter-start, label_index] = 1
 
 	input_feed_dict = {ensure_name_has_port(GROUND_TRUTH_TENSOR_NAME): label_inputs_one_hot, ensure_name_has_port(resized_input_tensor_name): image_inputs}
-	cross_entropy_value = sess.run([cross_entropy], feed_dict = input_feed_dict)
-	print 'batch ' + str(batch_iter) + 'done with cross entropy loss = ' + str(cross_entropy_value)
+	cross_entropy_value, sphere_loss_value = sess.run([cross_entropy, sphere_loss], feed_dict = input_feed_dict)
+	print 'batch ' + str(batch_iter) + 'done with cross entropy loss = ' + str(cross_entropy_value) + ' and with hinge loss = ' + str(sphere_loss_value)
 
