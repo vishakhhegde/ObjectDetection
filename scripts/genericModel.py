@@ -47,7 +47,7 @@ class generic_model():
 		lambda_train_s = 1.0  
 		cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(final_tensor, ground_truth_tensor))
 		sphere_loss = tf.reduce_mean(spherical_hinge_loss(inception_feature_tensor, ground_truth_tensor))
-		train_step = tf.train.AdamOptimizer(1e-1).minimize(tf.sum(cross_entropy,tf.mul(lambda_train_s, sphere_loss)))
+		train_step = tf.train.AdamOptimizer(1e-1).minimize(tf.sum(cross_entropy,tf.scalar_mul(lambda_train_s, sphere_loss)))
 		sess.run(tf.initialize_all_variables())
 		return (cross_entropy, sphere_loss)
 
