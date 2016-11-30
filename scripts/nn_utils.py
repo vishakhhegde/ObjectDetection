@@ -23,23 +23,23 @@ def add_last_layer(final_features, output_dim):
 	return logits, layer_weights, layer_biases
 
 def spherical_hinge_loss(feature_vec, labels=None, scope=None):
-  """Method that returns the loss tensor for spherical hinge loss.
-  Args:
-    feature_vec: the features, a float tensor.
-    labels: The ground truth output tensor. Its shape should match the shape of
-      logits. The values of the tensor are expected to be 0.0 or 1.0.
-    scope: The scope for the operations performed in computing the loss.
-  Returns:
-    A `Tensor` of same shape as feature_vec and target representing the loss values
-      across the batch.
-  Raises:
-    ValueError: If the shapes of `feature_vec` and `labels` don't match.
-  """
-  with tf.name_scope(scope, "spherical_hinge_loss", [feature_vec, labels]) as scope:
-    feature_vec.get_shape().assert_is_compatible_with(labels.get_shape())
-    # We first need to convert binary labels to -1/1 labels (as floats).
-    labels = tf.to_float(labels)
-    all_ones = tf.ones_like(labels)
-    labels = tf.sub(2 * tf.sign(labels), all_ones)
-	norm_squared = tf.sum(tf.square(feature_vec))
-    return tf.nn.relu(tf.mul(labels,tf.sub(all_ones, norm_squared)))
+	"""Method that returns the loss tensor for spherical hinge loss.
+	aArgs:
+	feature_vec: the features, a float tensor.
+	labels: The ground truth output tensor. Its shape should match the shape of
+	  logits. The values of the tensor are expected to be 0.0 or 1.0.
+	scope: The scope for the operations performed in computing the loss.
+	Returns:
+	A `Tensor` of same shape as feature_vec and target representing the loss values
+	  across the batch.
+	Raises:
+	ValueError: If the shapes of `feature_vec` and `labels` don't match.
+	"""
+	with tf.name_scope(scope, "spherical_hinge_loss", [feature_vec, labels]) as scope:
+		feature_vec.get_shape().assert_is_compatible_with(labels.get_shape())
+		# We first need to convert binary labels to -1/1 labels (as floats).
+		labels = tf.to_float(labels)
+		all_ones = tf.ones_like(labels)
+		labels = tf.sub(2 * tf.sign(labels), all_ones)
+		norm_squared = tf.sum(tf.square(feature_vec))
+		return tf.nn.relu(tf.mul(labels,tf.sub(all_ones, norm_squared)))
