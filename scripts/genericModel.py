@@ -3,7 +3,7 @@ import numpy as np
 import os, sys
 from genericModel import *
 from utils import *
-from nn_utils import weight_variable, bias_variable, conv2d, max_pool_2x2, add_last_layer
+from nn_utils import weight_variable, bias_variable, conv2d, max_pool_2x2, add_last_layer, spherical_hinge_loss
 # model_order is the name of the model used
 # network_id
 # image_dir
