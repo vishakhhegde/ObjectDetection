@@ -35,11 +35,11 @@ def spherical_hinge_loss(feature_vec, labels=None, scope=None):
 	Raises:
 	ValueError: If the shapes of `feature_vec` and `labels` don't match.
 	"""
-	with tf.name_scope(scope, "spherical_hinge_loss", [feature_vec, labels]) as scope:
-		feature_vec.get_shape().assert_is_compatible_with(labels.get_shape())
-		# We first need to convert binary labels to -1/1 labels (as floats).
-		labels = tf.to_float(labels)
-		all_ones = tf.ones_like(labels)
-		labels = tf.sub(2 * tf.sign(labels), all_ones)
-		norm_squared = tf.sum(tf.square(feature_vec))
-		return tf.nn.relu(tf.mul(labels,tf.sub(all_ones, norm_squared)))
+#	with tf.name_scope(scope, "spherical_hinge_loss", [feature_vec, labels]) as scope:
+#	feature_vec.get_shape().assert_is_compatible_with(labels.get_shape())
+	# We first need to convert binary labels to -1/1 labels (as floats).
+	labels = tf.to_float(labels)
+	all_ones = tf.ones_like(labels)
+	labels = tf.sub(2 * tf.sign(labels), all_ones)
+	norm_squared = tf.reduce_sum(tf.square(feature_vec))
+	return tf.nn.relu(tf.mul(labels,tf.sub(all_ones, norm_squared)))
