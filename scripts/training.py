@@ -4,7 +4,8 @@ from utils import *
 from nn_utils import weight_variable, bias_variable, conv2d, max_pool_2x2, add_last_layer
 import os, sys
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 from random import shuffle
 import argparse
 import random
