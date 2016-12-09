@@ -8,13 +8,15 @@ from PIL import Image
 from random import shuffle
 import argparse
 import random
-from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 
 
 tsne_switch = False
-tsne_X_array = []
-tsne_colors = []
+
+if tsne_switch == True:
+	from sklearn.manifold import TSNE
+	tsne_X_array = []
+	tsne_colors = []
 
 def parse_args():
 	parser = argparse.ArgumentParser()
