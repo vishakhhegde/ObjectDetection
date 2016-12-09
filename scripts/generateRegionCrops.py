@@ -6,7 +6,8 @@ import xmltodict
 from time import sleep
 from class_dictionary import class_dictionary
 import argparse
-from PIL import Image
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def parse_args():
 	parser = argparse.ArgumentParser()
