@@ -6,6 +6,7 @@ import xmltodict
 from time import sleep
 from class_dictionary import class_dictionary
 import argparse
+from PIL import Image
 
 def parse_args():
 	parser = argparse.ArgumentParser()
@@ -96,13 +97,21 @@ def crop_all_images_in_dict(bbox_dictionary, image_dir, positive_cropped_image_d
 		origBbox_list = get_orig_bbox(xml_filepath)
 		
 		image_path = os.path.join(image_dir, image_name + '.jpg')
-		orig_img = cv2.imread(image_path)
+
+		orig_img = Image.open(image_path)
+		orig_img = orig_img.convert('RGB')
+		orig_img = np.array(orig_img)
+
+		# orig_img = cv2.imread(image_path)
 
 		for j, origBbox in enumerate(origBbox_list):
 			orig_bbox = get_bbox_max_and_min(origBbox)
 			cropped_img = crop_single_image(orig_img, orig_bbox)
 			cropped_img_name = image_name + '_orig_' + str(j) + '.jpg'
-			cv2.imwrite(os.path.join(positive_cropped_image_dir, cropped_img_name), cropped_img)
+			cropped_img = Image.fromarray(cropped_img, mode='RGB')
+			cropped_img.save(os.path.join(positive_cropped_image_dir, cropped_img_name))
+
+			# cv2.imwrite(os.path.join(positive_cropped_image_dir, cropped_img_name), cropped_img)
 
 			object_class = origBbox['name']
 
@@ -119,12 +128,15 @@ def crop_all_images_in_dict(bbox_dictionary, image_dir, positive_cropped_image_d
 			# Now we actually need to crop the image
 			cropped_img = crop_single_image(orig_img, bbox)
 			lineToWrite = cropped_img_name + '\t' + str(class_dictionary[object_class]) + '\n'
+			cropped_img = Image.fromarray(cropped_img, mode='RGB')
 
 			if object_switch:
-				cv2.imwrite(os.path.join(positive_cropped_image_dir, cropped_img_name), cropped_img)
+				# cv2.imwrite(os.path.join(positive_cropped_image_dir, cropped_img_name), cropped_img)
+				cropped_img.save(os.path.join(positive_cropped_image_dir, cropped_img_name))
 				f_positiveImages.write(lineToWrite)
 			else:
-				cv2.imwrite(os.path.join(negative_cropped_image_dir, cropped_img_name), cropped_img)
+				# cv2.imwrite(os.path.join(negative_cropped_image_dir, cropped_img_name), cropped_img)
+				cropped_img.save(os.path.join(negative_cropped_image_dir, cropped_img_name))
 				f_negativeImages.write(lineToWrite)
 
 #######################################################################################
