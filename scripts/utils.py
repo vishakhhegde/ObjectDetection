@@ -29,12 +29,12 @@ def ensure_dir_exists(dir_name):
   if not os.path.exists(dir_name):
     os.makedirs(dir_name)
 
-def load_dataset(BASE_PATH):
-  image_list = os.listdir(BASE_PATH)
-  all_image_path = []
-  for image_filepath in image_list:
-    all_image_path.append(os.path.join(BASE_PATH, image_filepath))
-  return all_image_path
+# def load_dataset(BASE_PATH):
+#   image_list = os.listdir(BASE_PATH)
+#   all_image_path = []
+#   for image_filepath in image_list:
+#     all_image_path.append(os.path.join(BASE_PATH, image_filepath))
+#   return all_image_path
 
 
 def get_regions_dictionary(MAT_FILEPATH, IMAGES_BASEPATH):

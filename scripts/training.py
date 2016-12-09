@@ -5,64 +5,137 @@ from nn_utils import weight_variable, bias_variable, conv2d, max_pool_2x2, add_l
 import os, sys
 import numpy as np
 from PIL import Image
+from random import shuffle
+import argparse
+import random
 
-# This is the training script:
-# Does the following:
-# 1. Load and build the inceptionResnetModel 
-# 2. Train for whatever the target task is
-# 3. Save the checkpoint files
+def parse_args():
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--MAINFILE_PATH', type=str, help='The main path where the codebase exists')
+	parser.add_argument('--batch_size', type=int, help='Batch size for training')
+	parser.add_argument('--num_epochs', type=int, help='Number of epochs to be trained for', default = 1)
+	parser.add_argument('--positiveImages_path_textfile', type=str, default = 'VOCPositiveCrops.txt')
+	parser.add_argument('--negativeImages_path_textfile', type=str, default = 'VOCNegativeCrops.txt')
+	parser.add_argument('--positiveImagesDirName', type = str)
+	parser.add_argument('--negativeImagesDirName', type = str)
+	parser.add_argument('--SAVED_NETWORKS_PATH', type = str)
+	parser.add_argument('--background_fraction', type=float, default= 0.2)
+	parser.add_argument('--class_count', type=int, default=21)
+	args = parser.parse_args()
+	ensure_dir_exists(args.SAVED_NETWORKS_PATH)
+	return args
 
-# The following hard_coded variables can be passed to the network via bash script
-model_order = 'inceptionResnet'
-network_id = '1'
-DESKTOP = '/Users/vishakhhegde/Desktop/'
-MAINFILE_PATH = '/Users/vishakhhegde/ObjectDetection'
-image_dir = os.path.join(MAINFILE_PATH, 'VOCdevkit', 'VOC2012', 'JPEGImages')
-input_ckpt_path = os.path.join(MAINFILE_PATH, 'models', 'inception_resnet_v2_2016_08_30.ckpt')
-output_ckpt_dir = os.path.join(MAINFILE_PATH, 'saved_networks')
-input_graph_path = os.path.join(MAINFILE_PATH, 'models', 'inception_resnet_v2_metaGraph.meta')
-output_graph_path = os.path.join(MAINFILE_PATH, 'saved_networks')
-class_count = 20  # This hard coding needs to be removed
+def get_all_paths_and_labels(textFilePath, ImagesDirName):
+	ImagePaths = []
+	ImageLabels = []
+	f = open(textFilePath, 'r')
 
-TENSOR_TO_BE_GOT = 'InceptionResnetV2/Logits/Flatten/Reshape'
-GROUND_TRUTH_TENSOR_NAME = 'ground_truth'
-FINAL_TENSOR_NAME = 'final_tensor'
-resized_input_tensor_name = 'ResizeBilinear'
+	allLines = f.readlines()
+	index_shuff = range(len(allLines))
+	shuffle(index_shuff)
 
-batch_size = 50
+	for i in index_shuff:
+		line = allLines[i]
+		line = line.split()
+		ImagePaths.append(os.path.join(MAINFILE_PATH, ImagesDirName, line[0]))
+		ImageLabels.append(int(line[1]))
+
+	return ImagePaths, ImageLabels
+
+
+args = parse_args()
+
 ##################################################################################
 
-# Fire up a session
 sess = tf.InteractiveSession()
 
 ################## Initialise a model ############################################
 
-Model = generic_model(model_order, network_id, image_dir, input_ckpt_path, output_ckpt_dir, input_graph_path, output_graph_path, class_count)
-Model.build_basic_graph(sess)
-cross_entropy, sphere_loss = Model.build_graph_for_target(sess)
+Model = generic_model(args.class_count)
+object_or_not, labelTensor, imgTensor, scores, h_fc1 = Model.build_basic_graph(sess)
+cross_entropy, sphere_loss, train_step, norm_squared = Model.build_graph_for_target(sess, labelTensor, scores, h_fc1, object_or_not)
 
-##################################################################################
-# Load dataset to be fed in
-image_path = load_dataset(image_dir)
-num_images = len(image_path)
-label_indices = np.random.randint(class_count, size = num_images)
+#######################################################################################
+
+positiveImagePaths, positiveImageLabels = get_all_paths_and_labels(args.positiveImages_path_textfile, args.positiveImagesDirName)
+negativeImagePaths, negativeImageLabels = get_all_paths_and_labels(args.negativeImages_path_textfile, args.negativeImagesDirName)
+
+#############################################################################################
+saver = tf.train.Saver()
+
+checkpoint = tf.train.get_checkpoint_state(args.SAVED_NETWORKS_PATH)
+if checkpoint and checkpoint.model_checkpoint_path:
+	checkpoint_IterNum = int(checkpoint.model_checkpoint_path.split('-')[-1])
+	saver.restore(sess, checkpoint.model_checkpoint_path)
+	print "Successfully loaded:", checkpoint.model_checkpoint_path
+else:
+	checkpoint_IterNum = 0
+	print "Could not find old network weights"
+##########################################################################################
+num_positive_images = len(positiveImageLabels)
+num_negative_images = len(negativeImageLabels)
+
+positive_batch_size = int((1 - args.background_fraction)*args.batch_size)
+negative_batch_size = args.batch_size - positive_batch_size
+
+for epoch_num in range(args.num_epochs):
+	if args.background_fraction == 1.0:
+		negative_minibatch = random.sample(range(num_negative_images), args.batch_size)		
+		image_inputs = []
+		label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
+		object_or_not_inputs = []
+		for i, index in enumerate(negative_minibatch):
+			image_input = Image.open(negativeImagePaths[index]).resize((80,80))
+			image_input = image_input.convert('RGB')
+			image_input = np.array(image_input)
+			label_index = negativeImageLabels[index]
+
+			image_inputs.append(image_input)
+			label_inputs_one_hot[i, label_index] = 1
+			object_or_not_inputs.append(0)
+		cross_entropy_value, sphere_loss_value, norm_squared_value = sess.run([cross_entropy, sphere_loss, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+		print object_or_not_inputs, sphere_loss_value, norm_squared_value[0][0]
 
 
-for batch_iter in range(0, num_images, batch_size):
-	start = batch_iter
-	end = min(num_images, batch_iter + batch_size)
-	image_inputs = []
-	label_inputs_one_hot = np.zeros((end-start, class_count))
+	else:
+		for positive_batch_iter in range(0, num_positive_images, positive_batch_size):
+			positive_start = positive_batch_iter
+			positive_end = min(num_positive_images, positive_batch_iter + positive_batch_size)
+			image_inputs = []
+			label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
+			object_or_not_inputs = []
 
-	for image_iter in range(start, end):
-		image_input = Image.open(image_path[image_iter]).resize((299, 299))
-		image_input = image_input.convert('RGB')
-		image_input = np.array(image_input)
-		label_index = label_indices[image_iter]
-		image_inputs.append(image_input)
-		label_inputs_one_hot[image_iter-start, label_index] = 1
+			for image_iter in range(positive_start, positive_end):
+				# image_input = Image.open(positiveImagePaths[image_iter]).resize((299, 299))
+				image_input = Image.open(positiveImagePaths[image_iter]).resize((80, 80))		
+				image_input = image_input.convert('RGB')
+				image_input = np.array(image_input)
 
-	input_feed_dict = {ensure_name_has_port(GROUND_TRUTH_TENSOR_NAME): label_inputs_one_hot, ensure_name_has_port(resized_input_tensor_name): image_inputs}
-	cross_entropy_value, sphere_loss_value = sess.run([cross_entropy, sphere_loss], feed_dict = input_feed_dict)
-	print 'batch ' + str(batch_iter) + 'done with cross entropy loss = ' + str(cross_entropy_value) + ' and with hinge loss = ' + str(sphere_loss_value)
+				label_index = positiveImageLabels[image_iter]
 
+				image_inputs.append(image_input)
+				label_inputs_one_hot[image_iter - positive_start, label_index] = 1
+				object_or_not_inputs.append(1)
+
+			negative_minibatch = random.sample(range(num_negative_images), args.batch_size - (positive_end - positive_start))
+			for i, index in enumerate(negative_minibatch):
+				image_input = Image.open(negativeImagePaths[index]).resize((80,80))
+				image_input = image_input.convert('RGB')
+				image_input = np.array(image_input)
+
+				label_index = negativeImageLabels[index]
+
+				image_inputs.append(image_input)
+				label_inputs_one_hot[positive_end - positive_start + i, label_index] = 1
+				object_or_not_inputs.append(0)
+
+
+
+			# train_step.run(feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			cross_entropy_value, sphere_loss_value, norm_squared_value = sess.run([cross_entropy, sphere_loss, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			# print 'batch ' + str(positive_end) + ' done with cross entropy loss = ' + str(cross_entropy_value) + ' and with hinge loss = ' + str(sphere_loss_value)
+			print object_or_not_inputs, sphere_loss_value, norm_squared_value[0][0]
+	
+
+	if epoch_num % 10 == 0:
+		saver.save(sess, args.SAVED_NETWORKS_PATH + '/' + 'weights', global_step = (epoch_num+1)*num_positive_images + checkpoint_IterNum)

@@ -1,54 +1,61 @@
 import tensorflow as tf
 import numpy as np
 import os, sys
-from genericModel import *
 from utils import *
-from nn_utils import weight_variable, bias_variable, conv2d, max_pool_2x2, add_last_layer, spherical_hinge_loss
-# model_order is the name of the model used
-# network_id
-# image_dir
-# ckpt_path
-# input_graph_path
-# output_ckpt_dir
-# output_graph_path
-# session
-# class_count
-
-TENSOR_TO_BE_GOT = 'InceptionResnetV2/Logits/Flatten/Reshape'
-GROUND_TRUTH_TENSOR_NAME = 'ground_truth'
-FINAL_TENSOR_NAME = 'final_tensor'
-resized_input_tensor_name = 'ResizeBilinear'
+from nn_utils import weight_variable, bias_variable, conv2d, max_pool_2x2, add_last_layer, spherical_hinge_loss, spherical_softmax_loss
 
 class generic_model():
-	def __init__(self, model_order, network_id, image_dir, input_ckpt_path, output_ckpt_dir, input_graph_path, output_graph_path, class_count):
-		self.model_order = model_order
-		self.network_id = network_id
-		self.image_dir = image_dir
-		self.input_ckpt_path = input_ckpt_path
-		self.output_ckpt_dir = output_ckpt_dir
-		self.input_graph_path = input_graph_path
-		self.output_graph_path = output_graph_path
+	def __init__(self, class_count):
 		self.class_count = class_count
 
 	def build_basic_graph(self, sess):
-		saver = tf.train.import_meta_graph(self.input_graph_path)
-		saver.restore(sess, self.input_ckpt_path)
+		W_conv1 = weight_variable([8, 8, 3, 32])
+		b_conv1 = bias_variable([32])
 
-	def build_graph_for_target(self, sess):
-		# This is how the ground truth is fed
-		ground_truth_tensor = tf.placeholder(tf.float32, shape=(None, self.class_count),name=GROUND_TRUTH_TENSOR_NAME)
-		
-		# Get the relevant tensor from the graph
-		inception_feature_tensor = sess.graph.get_tensor_by_name(ensure_name_has_port(TENSOR_TO_BE_GOT))
+		W_conv2 = weight_variable([4, 4, 32, 64])
+		b_conv2 = bias_variable([64])
 
-		# Add final layer for classification
-		logits, _, _ = add_last_layer(inception_feature_tensor, self.class_count)
-		final_tensor = tf.nn.softmax(logits, name=FINAL_TENSOR_NAME)
-		lambda_train_s = 1.0  
-		cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(final_tensor, ground_truth_tensor))
-		sphere_loss = tf.reduce_mean(spherical_hinge_loss(inception_feature_tensor, ground_truth_tensor))
-		train_step = tf.train.AdamOptimizer(1e-1).minimize(tf.add(cross_entropy,tf.scalar_mul(lambda_train_s, sphere_loss)))
+		W_conv3 = weight_variable([3, 3, 64, 64])
+		b_conv3 = bias_variable([64])
+
+		W_fc1 = weight_variable([6400, 512])
+		b_fc1 = bias_variable([512])
+
+		W_fc2 = weight_variable([512, self.class_count])
+		b_fc2 = bias_variable([self.class_count])
+
+		imgTensor = tf.placeholder("float", [None, 80, 80, 3])
+		labelTensor = tf.placeholder("float", [None, self.class_count])
+		object_or_not = tf.placeholder("float", [None])
+
+	    # hidden layers
+		conv1 = tf.nn.relu(conv2d(imgTensor, W_conv1, 4) + b_conv1)
+
+		conv2 = tf.nn.relu(conv2d(conv1, W_conv2, 2) + b_conv2)
+
+		conv3 = tf.nn.relu(conv2d(conv2, W_conv3, 1) + b_conv3)
+
+		conv3_flat = tf.reshape(conv3, [-1, 6400])
+
+		h_fc1 = tf.nn.relu(tf.matmul(conv3_flat, W_fc1) + b_fc1)
+
+		scores = tf.matmul(h_fc1, W_fc2) + b_fc2
+
+		return object_or_not, labelTensor, imgTensor, scores, h_fc1
+
+	def build_graph_for_target(self, sess, labelTensor, scores, h_fc1, object_or_not):
+		cross_entropy = tf.reduce_mean(tf.mul(tf.nn.softmax_cross_entropy_with_logits(scores, labelTensor), object_or_not))
+
+		# sphere_loss_beforeMean = spherical_hinge_loss(h_fc1, object_or_not)
+		sphere_loss_beforeMean, norm_squared = spherical_softmax_loss(h_fc1, object_or_not)
+		sphere_loss = tf.reduce_mean(sphere_loss_beforeMean)
+
+		lambda_train_s = 1
+		total_loss = tf.add(cross_entropy,tf.scalar_mul(lambda_train_s, sphere_loss))
+
+		train_step = tf.train.AdamOptimizer(1e-5).minimize(total_loss)
 		sess.run(tf.initialize_all_variables())
-		return (cross_entropy, sphere_loss)
+		return cross_entropy, sphere_loss, train_step, norm_squared
+
 
 	

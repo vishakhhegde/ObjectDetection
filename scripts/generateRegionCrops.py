@@ -5,18 +5,23 @@ from utils import *
 import xmltodict
 from time import sleep
 from class_dictionary import class_dictionary
+import argparse
 
+def parse_args():
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--MAINFILE_PATH', type=str, help='The main path where the codebase exists')
+	parser.add_argument('--image_dir', type=str, help='Path to the image directory')
+	parser.add_argument('--negative_cropped_image_dir', type=str, help='Path to directory which stores negative images')
+	parser.add_argument('--positive_cropped_image_dir', type=str, help='Path to directory which stores positive images')
+	parser.add_argument('--positiveImages_path_textfile', type=str, default = 'VOCPositiveCrops.txt')
+	parser.add_argument('--negativeImages_path_textfile', type=str, default = 'VOCNegativeCrops.txt')
+	parser.add_argument('--xmlFiles_dir', type=str, help='Path to the required xml file')
+	parser.add_argument('--selectiveSearchFile', type=str, help='Path to file containing selective search data')
+	args = parser.parse_args()
 
-MAINFILE_PATH = '/Users/vishakhhegde/ObjectDetection'
-image_dir = os.path.join(MAINFILE_PATH, 'VOCdevkit', 'VOC2012', 'JPEGImages')
-
-negative_cropped_image_dir = os.path.join(MAINFILE_PATH, 'VOCNegativeCrops')
-positive_cropped_image_dir = os.path.join(MAINFILE_PATH, 'VOCPositiveCrops')
-ensure_dir_exists(negative_cropped_image_dir)
-ensure_dir_exists(positive_cropped_image_dir)
-
-xmlFiles_dir = os.path.join(MAINFILE_PATH, 'VOCdevkit', 'VOC2012', 'Annotations')
-# All bounding boxes should be of the form [ymin, xmin, ymax, xmax]
+	ensure_dir_exists(args.negative_cropped_image_dir)
+	ensure_dir_exists(args.positive_cropped_image_dir)
+	return args
 
 def get_bbox_max_and_min(origBbox):
 	orig_xmax = int(origBbox['bndbox']['xmax'])
@@ -80,12 +85,12 @@ def is_object(bbox, origBbox_list, IoU_threshold = 0.7):
 	return 'background', object_switch
 
 def crop_single_image(orig_img, bbox):
-	# This is fixed
 	ymin, xmin, ymax, xmax = bbox
 	cropped_img = orig_img[ymin:ymax+1, xmin:xmax+1]
 	return cropped_img
 
 def crop_all_images_in_dict(bbox_dictionary, image_dir, positive_cropped_image_dir, negative_cropped_image_dir, xmlFiles_dir):
+
 	for image_name in bbox_dictionary:
 		xml_filepath = os.path.join(xmlFiles_dir, image_name + '.xml')
 		origBbox_list = get_orig_bbox(xml_filepath)
@@ -99,31 +104,43 @@ def crop_all_images_in_dict(bbox_dictionary, image_dir, positive_cropped_image_d
 			cropped_img_name = image_name + '_orig_' + str(j) + '.jpg'
 			cv2.imwrite(os.path.join(positive_cropped_image_dir, cropped_img_name), cropped_img)
 
+			object_class = origBbox['name']
+
+			lineToWrite = cropped_img_name + '\t' + str(class_dictionary[object_class]) + '\n'
+			f_positiveImages.write(lineToWrite)
+
+
 		for i, bbox in enumerate(bbox_dictionary[image_name]):
 			object_class, object_switch = is_object(bbox, origBbox_list)			
 			cropped_img_name = image_name + '_' + str(i) + '.jpg'
-			if object_class is not 'background':
-				print object_class, class_dictionary[object_class]
+
+			print object_class, class_dictionary[object_class]
 
 			# Now we actually need to crop the image
 			cropped_img = crop_single_image(orig_img, bbox)
+			lineToWrite = cropped_img_name + '\t' + str(class_dictionary[object_class]) + '\n'
+
 			if object_switch:
 				cv2.imwrite(os.path.join(positive_cropped_image_dir, cropped_img_name), cropped_img)
+				f_positiveImages.write(lineToWrite)
 			else:
 				cv2.imwrite(os.path.join(negative_cropped_image_dir, cropped_img_name), cropped_img)
+				f_negativeImages.write(lineToWrite)
 
 #######################################################################################
-def main():
+def main(args):
 	# Get a dictionary of bounding boxes
-	bbox_dictionary = get_regions_dictionary('/Users/vishakhhegde/ObjectDetection/selective_search_data/voc_2012_train.mat',image_dir)
-
+	bbox_dictionary = get_regions_dictionary(args.selectiveSearchFile, args.image_dir)
 	# Crop all images
-	crop_all_images_in_dict(bbox_dictionary, image_dir, positive_cropped_image_dir, negative_cropped_image_dir, xmlFiles_dir)
+	crop_all_images_in_dict(bbox_dictionary, args.image_dir, args.positive_cropped_image_dir, args.negative_cropped_image_dir, args.xmlFiles_dir)
 
 ######################################################################################
 
 if __name__ == "__main__":
-	main()
+	args = parse_args()
+	f_positiveImages = open(args.positiveImages_path_textfile, 'w')
+	f_negativeImages = open(args.negativeImages_path_textfile, 'w')
+	main(args)
 	print 'Finished obtaining region proposals for all images'
 
 
