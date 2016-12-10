@@ -43,18 +43,17 @@ class generic_model():
 
 		return object_or_not, labelTensor, imgTensor, scores, h_fc1
 
-	def build_graph_for_target(self, sess, labelTensor, scores, h_fc1, object_or_not):
+	def build_graph_for_target(self, sess, labelTensor, scores, h_fc1, object_or_not, learning_rate, lamb):
 		cross_entropy = tf.reduce_mean(tf.mul(tf.nn.softmax_cross_entropy_with_logits(scores, labelTensor), object_or_not))
 
 		# sphere_loss_beforeMean = spherical_hinge_loss(h_fc1, object_or_not)
 		sphere_loss_beforeMean, norm_squared = spherical_softmax_loss(h_fc1, object_or_not)
 		sphere_loss = tf.reduce_mean(sphere_loss_beforeMean)
+		
+		total_loss = tf.add(cross_entropy,tf.scalar_mul(lamb, sphere_loss))
 
-		lambda_train_s = 1
-		total_loss = tf.add(cross_entropy,tf.scalar_mul(lambda_train_s, sphere_loss))
-
-		train_step = tf.train.AdamOptimizer(1e-5).minimize(total_loss)
-		sess.run(tf.initialize_all_variables())
+		train_step = tf.train.AdamOptimizer(learning_rate).minimize(total_loss)
+		
 		return cross_entropy, sphere_loss, train_step, norm_squared
 
 

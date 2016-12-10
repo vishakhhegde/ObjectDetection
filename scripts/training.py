@@ -12,12 +12,12 @@ import random
 import matplotlib.pyplot as plt
 
 
-tsne_switch = False
+# tsne_switch = False
 
-if tsne_switch == True:
-	from sklearn.manifold import TSNE
-	tsne_X_array = []
-	tsne_colors = []
+# if tsne_switch == True:
+# 	from sklearn.manifold import TSNE
+# 	tsne_X_array = []
+# 	tsne_colors = []
 
 def parse_args():
 	parser = argparse.ArgumentParser()
@@ -31,8 +31,26 @@ def parse_args():
 	parser.add_argument('--SAVED_NETWORKS_PATH', type = str)
 	parser.add_argument('--background_fraction', type=float, default= 0.2)
 	parser.add_argument('--class_count', type=int, default=21)
+	parser.add_argument('--learning_rate', type=float, default = 1e-5)
+	parser.add_argument('--lamb', type=float, default=1.0)
+	parser.add_argument('--GPUFrac', type=float)
 	args = parser.parse_args()
 	ensure_dir_exists(args.SAVED_NETWORKS_PATH)
+
+	params_file = open(os.path.join(args.SAVED_NETWORKS_PATH, 'training_params.txt'), 'w')
+	params_file.write('Batch size used: {}\n'.format(args.batch_size))
+	params_file.write('Num Epochs to be trained for: {}\n'.format(args.num_epochs))
+	params_file.write('Positive Images textfile name: {}\n'.format(args.positiveImages_path_textfile))
+	params_file.write('Negative Images textfile name: {}\n'.format(args.negativeImages_path_textfile))
+	params_file.write('Positive Images Directory: {}\n'.format(args.positiveImagesDirName))
+	params_file.write('Negative Images Directory: {}\n'.format(args.negativeImagesDirName))
+	params_file.write('Saved networks path: {}\n'.format(args.SAVED_NETWORKS_PATH))
+	params_file.write('background_fraction: {}\n'.format(args.background_fraction))
+	params_file.write('Class count: {}\n'.format(args.class_count))
+	params_file.write('Learning rate: {}\n'.format(args.learning_rate))
+	params_file.write('lambda: {}\n'.format(args.lamb))
+	params_file.write('GPU Frac Used: {}\n'.format(args.GPUFrac))
+	params_file.close()
 	return args
 
 def get_all_paths_and_labels(textFilePath, ImagesDirName):
@@ -57,13 +75,15 @@ args = parse_args()
 
 ##################################################################################
 
-sess = tf.InteractiveSession()
+gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.GPUFrac)
+sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
 
 ################## Initialise a model ############################################
 
 Model = generic_model(args.class_count)
 object_or_not, labelTensor, imgTensor, scores, h_fc1 = Model.build_basic_graph(sess)
-cross_entropy, sphere_loss, train_step, norm_squared = Model.build_graph_for_target(sess, labelTensor, scores, h_fc1, object_or_not)
+cross_entropy, sphere_loss, train_step, norm_squared = Model.build_graph_for_target(sess, labelTensor, scores, \
+													h_fc1, object_or_not, args.learning_rate, args.lamb)
 
 #######################################################################################
 
@@ -72,6 +92,8 @@ negativeImagePaths, negativeImageLabels = get_all_paths_and_labels(args.negative
 
 #############################################################################################
 saver = tf.train.Saver()
+
+sess.run(tf.initialize_all_variables())
 
 checkpoint = tf.train.get_checkpoint_state(args.SAVED_NETWORKS_PATH)
 if checkpoint and checkpoint.model_checkpoint_path:
@@ -90,88 +112,40 @@ negative_batch_size = args.batch_size - positive_batch_size
 
 for epoch_num in range(args.num_epochs):
 	
-	if args.background_fraction == 1.0:
-		for i in range(100):
-			negative_minibatch = random.sample(range(num_negative_images), args.batch_size)		
-			image_inputs = []
-			label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
-			object_or_not_inputs = []
-			for i, index in enumerate(negative_minibatch):
-				image_input = Image.open(negativeImagePaths[index]).resize((80,80))
-				image_input = image_input.convert('RGB')
-				image_input = np.array(image_input)
-				label_index = negativeImageLabels[index]
+	for positive_batch_iter in range(0, num_positive_images, positive_batch_size):
+		positive_start = positive_batch_iter
+		positive_end = min(num_positive_images, positive_batch_iter + positive_batch_size)
+		image_inputs = []
+		label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
+		object_or_not_inputs = []
 
-				image_inputs.append(image_input)
-				label_inputs_one_hot[i, label_index] = 1
-				object_or_not_inputs.append(0)
-			h_fc1_value, cross_entropy_value, sphere_loss_value, norm_squared_value = sess.run([h_fc1, cross_entropy, sphere_loss, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-			print ' done with cross entropy loss = ' + str(cross_entropy_value) + ' and with hinge loss = ' + str(sphere_loss_value)
-			print h_fc1_value
-			if tsne_switch:
-				tsne_X_array.append(h_fc1_value[0])
+		for image_iter in range(positive_start, positive_end):
+			# image_input = Image.open(positiveImagePaths[image_iter]).resize((299, 299))
+			image_input = Image.open(positiveImagePaths[image_iter]).resize((80, 80))		
+			image_input = image_input.convert('RGB')
+			image_input = np.array(image_input)
 
+			label_index = positiveImageLabels[image_iter]
 
-	else:
-		for positive_batch_iter in range(0, num_positive_images, positive_batch_size):
-			positive_start = positive_batch_iter
-			positive_end = min(num_positive_images, positive_batch_iter + positive_batch_size)
-			image_inputs = []
-			label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
-			object_or_not_inputs = []
+			image_inputs.append(image_input)
+			label_inputs_one_hot[image_iter - positive_start, label_index] = 1
+			object_or_not_inputs.append(1)
 
-			for image_iter in range(positive_start, positive_end):
-				# image_input = Image.open(positiveImagePaths[image_iter]).resize((299, 299))
-				image_input = Image.open(positiveImagePaths[image_iter]).resize((80, 80))		
-				image_input = image_input.convert('RGB')
-				image_input = np.array(image_input)
+		negative_minibatch = random.sample(range(num_negative_images), args.batch_size - (positive_end - positive_start))
+		for i, index in enumerate(negative_minibatch):
+			image_input = Image.open(negativeImagePaths[index]).resize((80,80))
+			image_input = image_input.convert('RGB')
+			image_input = np.array(image_input)
 
-				label_index = positiveImageLabels[image_iter]
+			label_index = negativeImageLabels[index]
 
-				image_inputs.append(image_input)
-				label_inputs_one_hot[image_iter - positive_start, label_index] = 1
-				object_or_not_inputs.append(1)
+			image_inputs.append(image_input)
+			label_inputs_one_hot[positive_end - positive_start + i, label_index] = 1
+			object_or_not_inputs.append(0)
 
-			negative_minibatch = random.sample(range(num_negative_images), args.batch_size - (positive_end - positive_start))
-			for i, index in enumerate(negative_minibatch):
-				image_input = Image.open(negativeImagePaths[index]).resize((80,80))
-				image_input = image_input.convert('RGB')
-				image_input = np.array(image_input)
-
-				label_index = negativeImageLabels[index]
-
-				image_inputs.append(image_input)
-				label_inputs_one_hot[positive_end - positive_start + i, label_index] = 1
-				object_or_not_inputs.append(0)
-
-
-
-			# train_step.run(feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-			h_fc1_value, cross_entropy_value, sphere_loss_value, norm_squared_value = sess.run([h_fc1, cross_entropy, sphere_loss, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-			print 'batch ' + str(positive_end) + ' done with cross entropy loss = ' + str(cross_entropy_value) + ' and with hinge loss = ' + str(sphere_loss_value)
-			if tsne_switch:
-				tsne_X_array.append(h_fc1_value)
-				tsne_colors.append(object_or_not_inputs)
-
-
-	tsne_X_array = np.array(tsne_X_array)
-	tsne_X_array = np.reshape(tsne_X_array, (-1, 512))
-
-	tsne_colors = np.array(tsne_colors)
-	tsne_colors = np.reshape(tsne_colors, (-1,1))
-
-	print tsne_colors.shape
-	# tsne_X_array = np.reshape()
-	tsne_model = TSNE(n_components=2, random_state=0)
-	tsne_output = tsne_model.fit_transform(tsne_X_array)
-	X_arr = tsne_output[:,0]
-	Y_arr = tsne_output[:,1]
-	# Z_arr = tsne_output[:,2]
-	plt.scatter(X_arr, Y_arr, c = tsne_colors)
-	plt.show()
-
-
+		train_step.run(feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+		h_fc1_value, cross_entropy_value, sphere_loss_value, norm_squared_value = sess.run([h_fc1, cross_entropy, sphere_loss, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
 	
-
+	print 'epoch number: {}'.format(epoch_num) +' done with training cross entropy loss = ' + str(cross_entropy_value) + ' and with training hinge loss = ' + str(sphere_loss_value)	
 	if epoch_num % 10 == 0:
 		saver.save(sess, args.SAVED_NETWORKS_PATH + '/' + 'weights', global_step = (epoch_num+1)*num_positive_images + checkpoint_IterNum)
