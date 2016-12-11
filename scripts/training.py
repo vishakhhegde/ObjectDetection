@@ -76,7 +76,7 @@ sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
 
 Model = generic_model(args.class_count)
 object_or_not, labelTensor, imgTensor, scores, h_fc1 = Model.build_basic_graph(sess)
-cross_entropy, sphere_loss, train_step, norm_squared = Model.build_graph_for_target(sess, labelTensor, scores, \
+cross_entropy, sphere_loss, train_step, norm_squared, object_score = Model.build_graph_for_target(sess, labelTensor, scores, \
 													h_fc1, object_or_not, args.learning_rate, args.lamb, args.sphericalLossType)
 
 #######################################################################################

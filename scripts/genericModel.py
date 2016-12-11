@@ -45,11 +45,11 @@ class generic_model():
 
 	def build_graph_for_target(self, sess, labelTensor, scores, h_fc1, object_or_not, learning_rate, lamb, sphericalLossType):
 		cross_entropy = tf.reduce_mean(tf.mul(tf.nn.softmax_cross_entropy_with_logits(scores, labelTensor), object_or_not))
-
+		object_score = 0
 		if sphericalLossType == 'spherical_hinge_loss':
 			sphere_loss_beforeMean, norm_squared = spherical_hinge_loss(h_fc1, object_or_not)
 		elif sphericalLossType == 'spherical_softmax_loss':
-			sphere_loss_beforeMean, norm_squared = spherical_softmax_loss(h_fc1, object_or_not)
+			sphere_loss_beforeMean, norm_squared, object_score = spherical_softmax_loss(h_fc1, object_or_not)
 
 		sphere_loss = tf.reduce_mean(sphere_loss_beforeMean)
 
@@ -57,7 +57,7 @@ class generic_model():
 
 		train_step = tf.train.AdamOptimizer(learning_rate).minimize(total_loss)
 		
-		return cross_entropy, sphere_loss, train_step, norm_squared
+		return cross_entropy, sphere_loss, train_step, norm_squared, object_score
 
 
 	
