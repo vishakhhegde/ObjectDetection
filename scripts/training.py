@@ -107,14 +107,13 @@ else:
 	checkpoint_IterNum = 0
 	print "Could not find old network weights"
 ##########################################################################################
+num_positive_images = len(positiveImageLabels)
+num_negative_images = len(negativeImageLabels)
+
+positive_batch_size = int((1 - args.background_fraction)*args.batch_size)
+negative_batch_size = args.batch_size - positive_batch_size
 
 if args.train_or_test == 'train':
-
-	num_positive_images = len(positiveImageLabels)
-	num_negative_images = len(negativeImageLabels)
-
-	positive_batch_size = int((1 - args.background_fraction)*args.batch_size)
-	negative_batch_size = args.batch_size - positive_batch_size
 
 	for epoch_num in range(args.num_epochs):
 		
@@ -164,11 +163,11 @@ if args.train_or_test == 'train':
 		if epoch_num % 10 == 0:
 			saver.save(sess, args.SAVED_NETWORKS_PATH + '/' + 'weights', global_step = (epoch_num+1)*num_positive_images + checkpoint_IterNum)
 
-elif agrs.train_or_test == 'test':
+elif args.train_or_test == 'test':
 	num_positive_images = len(positiveImageLabels)
 	num_negative_images = len(negativeImageLabels)
-	norm_squared_value_positive = [0 for x in num_positive_images]
-	norm_squared_value_negative = [0 for x in num_negative_images]
+	norm_squared_value_positive = [0 for x in range(num_positive_images)]
+	norm_squared_value_negative = [0 for x in range(num_negative_images)]
 	object_detection_score = 0
 	object_classification_score = 0
 	total_images = num_positive_images + num_negative_images
@@ -213,11 +212,11 @@ elif agrs.train_or_test == 'test':
 		object_or_not_inputs = []
 
 		for image_iter in range(negative_start, negative_end):
-			image_input = Image.open(negativeImagePaths[index]).resize((80,80))
+			image_input = Image.open(negativeImagePaths[image_iter]).resize((80,80))
 			image_input = image_input.convert('RGB')
 			image_input = np.array(image_input)
 
-			label_index = negativeImageLabels[index]
+			label_index = negativeImageLabels[image_iter]
 
 			image_inputs.append(image_input)
 			label_inputs_one_hot[image_iter - negative_start, label_index] = 1
@@ -236,13 +235,16 @@ elif agrs.train_or_test == 'test':
 			norm_squared_value_negative[negative_start:negative_end] = norm_squared_value
 		object_detection_score += det_score
 		object_classification_score += class_score
+
+	print object_detection_score, object_classification_score
 	object_detection_score = object_detection_score / float(total_images)
 	object_classification_score = object_classification_score / float(num_positive_images)
+
 	print 'Testing Stats:'
 	print 'object detection score ' + str(object_detection_score)
-	print 'object classification score' + str(object_classification_score)
+	print 'object classification score ' + str(object_classification_score)
 	if args.sphericalLossType != 'None':
-		plt.hist(norm_squared_value_negative,color='g', bins=1000, normed=True, cumulative=True)
+		plt.hist(norm_squared_value_negative, color='g', bins=1000, normed=True, cumulative=True)
 		savefig('negative.png', bbox_inches='tight')
 		plt.hist(norm_squared_value_negative,color='r', bins=1000, normed=True, cumulative=True)
 		savefig('positive.png', bbox_inches='tight')
