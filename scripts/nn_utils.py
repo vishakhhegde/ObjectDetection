@@ -43,8 +43,8 @@ def spherical_hinge_loss(feature_vec, labels=None, scope=None):
 #	labels_mod = tf.sub(tf.scalar_mul(2,tf.to_float(labels)), all_ones)
 	labels_mod = tf.sub(tf.scalar_mul(2,tf.to_float(labels)), all_ones)
 	norm_squared = tf.reduce_sum(tf.square(feature_vec), 1, keep_dims=True)
-	print labels_mod, norm_squared, tf.nn.relu(tf.mul(tf.reshape(labels_mod,[-1, 1]),tf.sub(tf.reshape(all_ones,[-1, 1]), norm_squared)))
-	return tf.nn.relu(tf.mul(tf.reshape(labels_mod,[-1, 1]),tf.sub(tf.reshape(all_ones,[-1, 1]), norm_squared)))
+	spherical_softmax_loss = tf.nn.relu(tf.mul(tf.reshape(labels_mod,[-1, 1]),tf.sub(tf.reshape(all_ones,[-1, 1]), norm_squared)))
+	return spherical_softmax_loss, norm_squared
 
 def spherical_softmax_loss(feature_vec, object_or_not):
 	norm_squared = tf.reduce_sum(tf.square(feature_vec), 1, keep_dims=True)

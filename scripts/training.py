@@ -11,14 +11,6 @@ import argparse
 import random
 import matplotlib.pyplot as plt
 
-
-# tsne_switch = False
-
-# if tsne_switch == True:
-# 	from sklearn.manifold import TSNE
-# 	tsne_X_array = []
-# 	tsne_colors = []
-
 def parse_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--MAINFILE_PATH', type=str, help='The main path where the codebase exists')
@@ -34,6 +26,7 @@ def parse_args():
 	parser.add_argument('--learning_rate', type=float, default = 1e-5)
 	parser.add_argument('--lamb', type=float, default=1.0)
 	parser.add_argument('--GPUFrac', type=float)
+	parser.add_argument('--sphericalLossType', type=str, default='spherical_hinge_loss')
 	args = parser.parse_args()
 	ensure_dir_exists(args.SAVED_NETWORKS_PATH)
 
@@ -50,6 +43,7 @@ def parse_args():
 	params_file.write('Learning rate: {}\n'.format(args.learning_rate))
 	params_file.write('lambda: {}\n'.format(args.lamb))
 	params_file.write('GPU Frac Used: {}\n'.format(args.GPUFrac))
+	params_file.write('Spherical Loss used: {}\n'.format(args.sphericalLossType))
 	params_file.close()
 	return args
 
@@ -83,7 +77,7 @@ sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
 Model = generic_model(args.class_count)
 object_or_not, labelTensor, imgTensor, scores, h_fc1 = Model.build_basic_graph(sess)
 cross_entropy, sphere_loss, train_step, norm_squared = Model.build_graph_for_target(sess, labelTensor, scores, \
-													h_fc1, object_or_not, args.learning_rate, args.lamb)
+													h_fc1, object_or_not, args.learning_rate, args.lamb, args.sphericalLossType)
 
 #######################################################################################
 
