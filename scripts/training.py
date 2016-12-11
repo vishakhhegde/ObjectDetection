@@ -189,7 +189,7 @@ elif agrs.train_or_test == 'test':
 			object_or_not_inputs.append(1)
 
 		if args.sphericalLossType == 'None':
-			cross_entropy_value = sess.run([], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			scores_class = sess.run([scores], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
 			det_score, class_score = test_object_detection_softmax(scores_class, object_or_not_inputs, label_inputs_one_hot)
 		elif args.sphericalLossType == 'spherical_softmax_loss':
 			scores_class, score_detect ,norm_squared_value = sess.run([scores, object_score, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
@@ -219,7 +219,7 @@ elif agrs.train_or_test == 'test':
 			object_or_not_inputs.append(0)
 
 		if args.sphericalLossType == 'None':
-			cross_entropy_value = sess.run([], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			scores_class = sess.run([scores], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
 			det_score, class_score = test_object_detection_softmax(scores_class, object_or_not_inputs, label_inputs_one_hot)
 		elif args.sphericalLossType == 'spherical_softmax_loss':
 			scores_class, score_detect ,norm_squared_value = sess.run([scores, object_score, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
