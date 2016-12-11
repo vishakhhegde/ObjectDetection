@@ -243,4 +243,6 @@ elif agrs.train_or_test == 'test':
 	print 'object classification score' + str(object_classification_score)
 	if args.sphericalLossType != 'None':
 		plt.hist(norm_squared_value_negative,color='g', bins=1000, normed=True, cumulative=True)
+		savefig('negative.png', bbox_inches='tight')
 		plt.hist(norm_squared_value_negative,color='r', bins=1000, normed=True, cumulative=True)
+		savefig('positive.png', bbox_inches='tight')
