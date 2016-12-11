@@ -94,7 +94,7 @@ def test_object_detection_spherical_hinge(scores_class, norm_squared, object_or_
 	
 	object_classification_vector = np.multiply(test_object_labels == object_labels,\
 		np.multiply(object_detect_vector, object_or_not))
-	object_classification_score = np.sum(object_classification_score)
+	object_classification_score = np.sum(object_classification_vector)
 	return object_detection_score, object_classification_score
 
 def test_object_detection_softmax(scores_class, object_or_not, label_inputs_one_hot):
@@ -104,5 +104,5 @@ def test_object_detection_softmax(scores_class, object_or_not, label_inputs_one_
 	
 	object_net_vector = test_object_labels == object_labels
 	object_classification_vector = np.multiply(object_net_vector, object_or_not)
-	object_classification_score = np.sum(object_classification_score)
+	object_classification_score = np.sum(object_classification_vector)
 	return object_detection_score, object_classification_score
