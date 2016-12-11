@@ -167,6 +167,8 @@ if args.train_or_test == 'train':
 elif agrs.train_or_test == 'test':
 	num_positive_images = len(positiveImageLabels)
 	num_negative_images = len(negativeImageLabels)
+	norm_squared_value_positive = [0 for x in num_positive_images]
+	norm_squared_value_negative = [0 for x in num_negative_images]
 	object_detection_score = 0
 	object_classification_score = 0
 	total_images = num_positive_images + num_negative_images
@@ -194,9 +196,12 @@ elif agrs.train_or_test == 'test':
 		elif args.sphericalLossType == 'spherical_softmax_loss':
 			scores_class, score_detect ,norm_squared_value = sess.run([scores, object_score, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
 			det_score, class_score = test_object_detection_spherical_softmax(scores_class, score_detect, object_or_not_inputs, label_inputs_one_hot)
+			norm_squared_value_positive[positive_start:positive_end] = norm_squared_value
 		elif args.sphericalLossType == 'spherical_hinge_loss':
 			score_value ,norm_squared_value = sess.run([scores, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
 			det_score, class_score = test_object_detection_spherical_hinge(scores_class, norm_squared_value, object_or_not_inputs, label_inputs_one_hot)
+			norm_squared_value_positive[positive_start:positive_end] = norm_squared_value			
+
 		object_detection_score += det_score
 		object_classification_score += class_score
 
@@ -224,9 +229,11 @@ elif agrs.train_or_test == 'test':
 		elif args.sphericalLossType == 'spherical_softmax_loss':
 			scores_class, score_detect ,norm_squared_value = sess.run([scores, object_score, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
 			det_score, class_score = test_object_detection_spherical_softmax(scores_class, score_detect, object_or_not_inputs, label_inputs_one_hot)
+			norm_squared_value_negative[negative_start:negative_end] = norm_squared_value
 		elif args.sphericalLossType == 'spherical_hinge_loss':
 			score_value ,norm_squared_value = sess.run([scores, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
 			det_score, class_score = test_object_detection_spherical_hinge(scores_class, norm_squared_value, object_or_not_inputs, label_inputs_one_hot)
+			norm_squared_value_negative[negative_start:negative_end] = norm_squared_value
 		object_detection_score += det_score
 		object_classification_score += class_score
 	object_detection_score = object_detection_score / float(total_images)
@@ -234,3 +241,6 @@ elif agrs.train_or_test == 'test':
 	print 'Testing Stats:'
 	print 'object detection score ' + str(object_detection_score)
 	print 'object classification score' + str(object_classification_score)
+	if args.sphericalLossType != 'None':
+		plt.hist(norm_squared_value_negative,color='g', bins=1000, normed=True, cumulative=True)
+		plt.hist(norm_squared_value_negative,color='r', bins=1000, normed=True, cumulative=True)
