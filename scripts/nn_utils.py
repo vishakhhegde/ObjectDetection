@@ -77,19 +77,32 @@ def test_object_detection_spherical_softmax(scores_class, score_object, object_o
 	object_labels = np.argmax(label_inputs_one_hot, 1)
 	test_object_labels = np.argmax(scores_class[:][0:20], 1) 
 	object_detect_vector = test_obj_or_not == object_or_not
-	object_detection_score = np.sum(object_detect_vector) / float(object_detect_vector.shape[0])
+	object_detection_score = np.sum(object_detect_vector) 
 	
 	object_classification_vector = np.multiply(test_object_labels == object_labels,\
-	 	np.multiply(object_detect_vector, object_or_not))
-	object_classification_score = np.sum(object_classification_score) / float(np.sum(object_or_not))
+		np.multiply(object_detect_vector, object_or_not))
+	object_classification_score = np.sum(object_classification_score)
+	return object_detection_score, object_classification_score
+
+def test_object_detection_spherical_hinge(scores_class, norm_squared, object_or_not, label_inputs_one_hot):
+	test_obj_or_not_neg = norm_squared >= 1
+	test_obj_or_not = tf.sub(tf.ones_like(test_obj_or_not_neg), test_obj_or_not_neg)
+	object_labels = np.argmax(label_inputs_one_hot, 1)
+	test_object_labels = np.argmax(scores_class[:][0:20], 1) 
+	object_detect_vector = test_obj_or_not == object_or_not
+	object_detection_score = np.sum(object_detect_vector) 
+	
+	object_classification_vector = np.multiply(test_object_labels == object_labels,\
+		np.multiply(object_detect_vector, object_or_not))
+	object_classification_score = np.sum(object_classification_score)
 	return object_detection_score, object_classification_score
 
 def test_object_detection_softmax(scores_class, object_or_not, label_inputs_one_hot):
 	object_labels = np.argmax(label_inputs_one_hot, 1)
 	test_object_labels = np.argmax(scores_class, 1) 
-	object_detection_score = np.sum((object_labels < 20) == object_or_not) / float(object_detect_vector.shape[0])
+	object_detection_score = np.sum((object_labels < 20) == object_or_not)
 	
 	object_net_vector = test_object_labels == object_labels
 	object_classification_vector = np.multiply(object_net_vector, object_or_not)
-	object_classification_score = np.sum(object_classification_score) / float(np.sum(object_or_not))
+	object_classification_score = np.sum(object_classification_score)
 	return object_detection_score, object_classification_score

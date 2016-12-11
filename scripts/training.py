@@ -165,4 +165,72 @@ if args.train_or_test == 'train':
 			saver.save(sess, args.SAVED_NETWORKS_PATH + '/' + 'weights', global_step = (epoch_num+1)*num_positive_images + checkpoint_IterNum)
 
 elif agrs.train_or_test == 'test':
-	pass
+	num_positive_images = len(positiveImageLabels)
+	num_negative_images = len(negativeImageLabels)
+	object_detection_score = 0
+	object_classification_score = 0
+	total_images = num_positive_images + num_negative_images
+	for positive_batch_iter in range(0, args.batch_size, positive_batch_size):
+		positive_start = positive_batch_iter
+		positive_end = min(num_positive_images, positive_batch_iter + positive_batch_size)
+		image_inputs = []
+		label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
+		object_or_not_inputs = []
+
+		for image_iter in range(positive_start, positive_end):
+			image_input = Image.open(positiveImagePaths[image_iter]).resize((80, 80))		
+			image_input = image_input.convert('RGB')
+			image_input = np.array(image_input)
+
+			label_index = positiveImageLabels[image_iter]
+
+			image_inputs.append(image_input)
+			label_inputs_one_hot[image_iter - positive_start, label_index] = 1
+			object_or_not_inputs.append(1)
+
+		if args.sphericalLossType == 'None':
+			cross_entropy_value = sess.run([], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			det_score, class_score = test_object_detection_softmax(scores_class, object_or_not_inputs, label_inputs_one_hot)
+		elif args.sphericalLossType == 'spherical_softmax_loss':
+			scores_class, score_detect ,norm_squared_value = sess.run([scores, object_score, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			det_score, class_score = test_object_detection_spherical_softmax(scores_class, score_detect, object_or_not_inputs, label_inputs_one_hot)
+		elif args.sphericalLossType == 'spherical_hinge_loss':
+			score_value ,norm_squared_value = sess.run([scores, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			det_score, class_score = test_object_detection_spherical_hinge(scores_class, norm_squared_value, object_or_not_inputs, label_inputs_one_hot)
+		object_detection_score += det_score
+		object_classification_score += class_score
+
+	for negative_batch_iter in range(0, args.batch_size, negative_batch_size):
+		negative_start = negative_batch_iter
+		negative_end = min(num_negative_images, negative_batch_iter + negative_batch_size)
+		image_inputs = []
+		label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
+		object_or_not_inputs = []
+
+		for image_iter in range(negative_start, negative_end):
+			image_input = Image.open(negativeImagePaths[index]).resize((80,80))
+			image_input = image_input.convert('RGB')
+			image_input = np.array(image_input)
+
+			label_index = negativeImageLabels[index]
+
+			image_inputs.append(image_input)
+			label_inputs_one_hot[image_iter - negative_start, label_index] = 1
+			object_or_not_inputs.append(0)
+
+		if args.sphericalLossType == 'None':
+			cross_entropy_value = sess.run([], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			det_score, class_score = test_object_detection_softmax(scores_class, object_or_not_inputs, label_inputs_one_hot)
+		elif args.sphericalLossType == 'spherical_softmax_loss':
+			scores_class, score_detect ,norm_squared_value = sess.run([scores, object_score, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			det_score, class_score = test_object_detection_spherical_softmax(scores_class, score_detect, object_or_not_inputs, label_inputs_one_hot)
+		elif args.sphericalLossType == 'spherical_hinge_loss':
+			score_value ,norm_squared_value = sess.run([scores, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			det_score, class_score = test_object_detection_spherical_hinge(scores_class, norm_squared_value, object_or_not_inputs, label_inputs_one_hot)
+		object_detection_score += det_score
+		object_classification_score += class_score
+	object_detection_score = object_detection_score / float(total_images)
+	object_classification_score = object_classification_score / float(num_positive_images)
+	print 'Testing Stats:'
+	print 'object detection score ' + str(object_detection_score)
+	print 'object classification score' + str(object_classification_score)
