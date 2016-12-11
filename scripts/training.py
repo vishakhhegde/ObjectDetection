@@ -27,7 +27,7 @@ def parse_args():
 	parser.add_argument('--learning_rate', type=float, default = 1e-5)
 	parser.add_argument('--lamb', type=float, default=1.0)
 	parser.add_argument('--GPUFrac', type=float)
-	parser.add_argument('--sphericalLossType', type=str, default='spherical_hinge_loss')
+	parser.add_argument('--sphericalLossType', type=str)
 	parser.add_argument('--train_or_test', type=str, default='train')
 	args = parser.parse_args()
 	ensure_dir_exists(args.SAVED_NETWORKS_PATH)
@@ -78,7 +78,14 @@ sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
 
 Model = generic_model(args.class_count)
 object_or_not, labelTensor, imgTensor, scores, h_fc1 = Model.build_basic_graph(sess)
-cross_entropy, sphere_loss, train_step, norm_squared, object_score = Model.build_graph_for_target(sess, labelTensor, scores, \
+
+if args.sphericalLossType == 'None':
+	print 'Training Simple softmax classifier on all object classes plus background class'
+	cross_entropy, train_step = Model.build_graph_for_target(sess, labelTensor, scores, \
+													h_fc1, object_or_not, args.learning_rate, args.lamb, args.sphericalLossType)
+else:
+	print 'Training with spherical loss of type {}'.format(args.sphericalLossType)
+	cross_entropy, sphere_loss, train_step, norm_squared, object_score = Model.build_graph_for_target(sess, labelTensor, scores, \
 													h_fc1, object_or_not, args.learning_rate, args.lamb, args.sphericalLossType)
 
 #######################################################################################
@@ -119,7 +126,6 @@ if args.train_or_test == 'train':
 			object_or_not_inputs = []
 
 			for image_iter in range(positive_start, positive_end):
-				# image_input = Image.open(positiveImagePaths[image_iter]).resize((299, 299))
 				image_input = Image.open(positiveImagePaths[image_iter]).resize((80, 80))		
 				image_input = image_input.convert('RGB')
 				image_input = np.array(image_input)
@@ -143,10 +149,20 @@ if args.train_or_test == 'train':
 				object_or_not_inputs.append(0)
 
 			train_step.run(feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-			h_fc1_value, cross_entropy_value, sphere_loss_value, norm_squared_value = sess.run([h_fc1, cross_entropy, sphere_loss, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-		
-		print 'epoch number: {}'.format(epoch_num) +' done with training cross entropy loss = ' + str(cross_entropy_value) + ' and with training hinge loss = ' + str(sphere_loss_value)	
+			if args.sphericalLossType == 'None':
+				cross_entropy_value = sess.run([cross_entropy], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+				
+			else:
+				h_fc1_value, cross_entropy_value, sphere_loss_value, norm_squared_value = sess.run([h_fc1, cross_entropy, sphere_loss, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+				
+				
+		if args.sphericalLossType == 'None':
+			print 'epoch number: {}'.format(epoch_num) +' done with training cross entropy loss = ' + str(cross_entropy_value)
+		else:
+			print 'epoch number: {}'.format(epoch_num) +' done with training cross entropy loss = ' + str(cross_entropy_value) + ' and with training hinge loss = ' + str(sphere_loss_value)	
+
 		if epoch_num % 10 == 0:
 			saver.save(sess, args.SAVED_NETWORKS_PATH + '/' + 'weights', global_step = (epoch_num+1)*num_positive_images + checkpoint_IterNum)
 
 elif agrs.train_or_test == 'test':
+	pass
