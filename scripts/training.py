@@ -2,6 +2,7 @@ import tensorflow as tf
 from genericModel import *
 from utils import *
 from nn_utils import weight_variable, bias_variable, conv2d, max_pool_2x2, add_last_layer
+from nn_utils import test_object_detection_spherical_softmax, test_object_detection_softmax
 import os, sys
 import numpy as np
 from PIL import Image, ImageFile
@@ -16,8 +17,8 @@ def parse_args():
 	parser.add_argument('--MAINFILE_PATH', type=str, help='The main path where the codebase exists')
 	parser.add_argument('--batch_size', type=int, help='Batch size for training')
 	parser.add_argument('--num_epochs', type=int, help='Number of epochs to be trained for', default = 1)
-	parser.add_argument('--positiveImages_path_textfile', type=str, default = 'VOCPositiveCrops.txt')
-	parser.add_argument('--negativeImages_path_textfile', type=str, default = 'VOCNegativeCrops.txt')
+	parser.add_argument('--positiveImages_path_textfile', type=str)
+	parser.add_argument('--negativeImages_path_textfile', type=str)
 	parser.add_argument('--positiveImagesDirName', type = str)
 	parser.add_argument('--negativeImagesDirName', type = str)
 	parser.add_argument('--SAVED_NETWORKS_PATH', type = str)
@@ -27,6 +28,7 @@ def parse_args():
 	parser.add_argument('--lamb', type=float, default=1.0)
 	parser.add_argument('--GPUFrac', type=float)
 	parser.add_argument('--sphericalLossType', type=str, default='spherical_hinge_loss')
+	parser.add_argument('--train_or_test', type=str, default='train')
 	args = parser.parse_args()
 	ensure_dir_exists(args.SAVED_NETWORKS_PATH)
 
@@ -98,48 +100,53 @@ else:
 	checkpoint_IterNum = 0
 	print "Could not find old network weights"
 ##########################################################################################
-num_positive_images = len(positiveImageLabels)
-num_negative_images = len(negativeImageLabels)
 
-positive_batch_size = int((1 - args.background_fraction)*args.batch_size)
-negative_batch_size = args.batch_size - positive_batch_size
+if args.train_or_test == 'train':
 
-for epoch_num in range(args.num_epochs):
-	
-	for positive_batch_iter in range(0, num_positive_images, positive_batch_size):
-		positive_start = positive_batch_iter
-		positive_end = min(num_positive_images, positive_batch_iter + positive_batch_size)
-		image_inputs = []
-		label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
-		object_or_not_inputs = []
+	num_positive_images = len(positiveImageLabels)
+	num_negative_images = len(negativeImageLabels)
 
-		for image_iter in range(positive_start, positive_end):
-			# image_input = Image.open(positiveImagePaths[image_iter]).resize((299, 299))
-			image_input = Image.open(positiveImagePaths[image_iter]).resize((80, 80))		
-			image_input = image_input.convert('RGB')
-			image_input = np.array(image_input)
+	positive_batch_size = int((1 - args.background_fraction)*args.batch_size)
+	negative_batch_size = args.batch_size - positive_batch_size
 
-			label_index = positiveImageLabels[image_iter]
+	for epoch_num in range(args.num_epochs):
+		
+		for positive_batch_iter in range(0, num_positive_images, positive_batch_size):
+			positive_start = positive_batch_iter
+			positive_end = min(num_positive_images, positive_batch_iter + positive_batch_size)
+			image_inputs = []
+			label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
+			object_or_not_inputs = []
 
-			image_inputs.append(image_input)
-			label_inputs_one_hot[image_iter - positive_start, label_index] = 1
-			object_or_not_inputs.append(1)
+			for image_iter in range(positive_start, positive_end):
+				# image_input = Image.open(positiveImagePaths[image_iter]).resize((299, 299))
+				image_input = Image.open(positiveImagePaths[image_iter]).resize((80, 80))		
+				image_input = image_input.convert('RGB')
+				image_input = np.array(image_input)
 
-		negative_minibatch = random.sample(range(num_negative_images), args.batch_size - (positive_end - positive_start))
-		for i, index in enumerate(negative_minibatch):
-			image_input = Image.open(negativeImagePaths[index]).resize((80,80))
-			image_input = image_input.convert('RGB')
-			image_input = np.array(image_input)
+				label_index = positiveImageLabels[image_iter]
 
-			label_index = negativeImageLabels[index]
+				image_inputs.append(image_input)
+				label_inputs_one_hot[image_iter - positive_start, label_index] = 1
+				object_or_not_inputs.append(1)
 
-			image_inputs.append(image_input)
-			label_inputs_one_hot[positive_end - positive_start + i, label_index] = 1
-			object_or_not_inputs.append(0)
+			negative_minibatch = random.sample(range(num_negative_images), args.batch_size - (positive_end - positive_start))
+			for i, index in enumerate(negative_minibatch):
+				image_input = Image.open(negativeImagePaths[index]).resize((80,80))
+				image_input = image_input.convert('RGB')
+				image_input = np.array(image_input)
 
-		train_step.run(feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-		h_fc1_value, cross_entropy_value, sphere_loss_value, norm_squared_value = sess.run([h_fc1, cross_entropy, sphere_loss, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-	
-	print 'epoch number: {}'.format(epoch_num) +' done with training cross entropy loss = ' + str(cross_entropy_value) + ' and with training hinge loss = ' + str(sphere_loss_value)	
-	if epoch_num % 10 == 0:
-		saver.save(sess, args.SAVED_NETWORKS_PATH + '/' + 'weights', global_step = (epoch_num+1)*num_positive_images + checkpoint_IterNum)
+				label_index = negativeImageLabels[index]
+
+				image_inputs.append(image_input)
+				label_inputs_one_hot[positive_end - positive_start + i, label_index] = 1
+				object_or_not_inputs.append(0)
+
+			train_step.run(feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			h_fc1_value, cross_entropy_value, sphere_loss_value, norm_squared_value = sess.run([h_fc1, cross_entropy, sphere_loss, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+		
+		print 'epoch number: {}'.format(epoch_num) +' done with training cross entropy loss = ' + str(cross_entropy_value) + ' and with training hinge loss = ' + str(sphere_loss_value)	
+		if epoch_num % 10 == 0:
+			saver.save(sess, args.SAVED_NETWORKS_PATH + '/' + 'weights', global_step = (epoch_num+1)*num_positive_images + checkpoint_IterNum)
+
+elif agrs.train_or_test == 'test':
