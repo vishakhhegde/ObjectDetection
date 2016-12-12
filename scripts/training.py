@@ -6,12 +6,11 @@ from nn_utils import test_object_detection_spherical_softmax, test_object_detect
 import os, sys
 import numpy as np
 from PIL import Image, ImageFile
-from scipy import misc
-from scipy import ndimage
 from random import shuffle
 import argparse
 import random
 import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
 
 def parse_args():
 	parser = argparse.ArgumentParser()
@@ -95,7 +94,7 @@ positiveImagePaths, positiveImageLabels = get_all_paths_and_labels(args.positive
 negativeImagePaths, negativeImageLabels = get_all_paths_and_labels(args.negativeImages_path_textfile, args.negativeImagesDirName)
 
 #############################################################################################
-saver = tf.train.Saver()
+saver = tf.train.Saver(max_to_keep=100)
 
 sess.run(tf.initialize_all_variables())
 
@@ -162,6 +161,8 @@ if args.train_or_test == 'train':
 		if epoch_num % 10 == 0:
 			saver.save(sess, args.SAVED_NETWORKS_PATH + '/' + 'weights', global_step = (epoch_num+1)*num_positive_images + checkpoint_IterNum)
 
+######################################################################################################################
+
 elif args.train_or_test == 'test':
 	allImagePaths =	np.concatenate((positiveImagePaths, negativeImagePaths))
 	allImageLabels = np.concatenate((positiveImageLabels, negativeImageLabels))
@@ -175,7 +176,13 @@ elif args.train_or_test == 'test':
 
 	obj_num_label_correct = 0
 	obj_total = 0
-	for i in range(num_images):
+
+	num_images_to_test = 1000
+
+	prefinal_layer_activations = []
+	ground_truth_labels = []
+
+	for i in range(num_images_to_test):
 		index = index_arr[i]
 		image_input = Image.open(allImagePaths[index]).resize((80,80))
 		image_input = image_input.convert('RGB')
@@ -191,8 +198,11 @@ elif args.train_or_test == 'test':
 			object_or_not_input = 1
 			obj_total += 1
 
+################## Get prediction based on the type of loss function used #####################
+
 		if args.sphericalLossType == 'spherical_hinge_loss':
-			scores_class, norm_squared_value = sess.run([scores, norm_squared], feed_dict = {labelTensor: [label_inputs_one_hot], imgTensor: [image_input], object_or_not: [object_or_not_input]})
+			scores_class, norm_squared_value, h_fc1_value = sess.run([scores, norm_squared, h_fc1], feed_dict = {labelTensor: [label_inputs_one_hot], imgTensor: [image_input], object_or_not: [object_or_not_input]})
+
 			if norm_squared_value > 1:
 				object_prediction = 1
 				label_prediction = np.argmax(scores_class[:20])
@@ -201,16 +211,46 @@ elif args.train_or_test == 'test':
 				object_prediction = 0
 				label_prediction = 20
 
-			total_num_obj_correct += object_prediction == object_or_not_input
-			total_num_label_correct += label_prediction == label_index
+		elif args.sphericalLossType == 'None':
+			scores_class, h_fc1_value = sess.run([scores, h_fc1], feed_dict = {labelTensor: [label_inputs_one_hot], imgTensor: [image_input], object_or_not: [object_or_not_input]})
+			label_prediction = np.argmax(scores_class)
+			if label_prediction < 20:
+				object_prediction = 1
+				obj_num_label_correct += label_prediction == label_index
+			else:
+				object_prediction = 0
 
-			# print object_or_not_input, object_prediction, label_index, label_prediction, norm_squared_value
+		elif args.sphericalLossType == 'spherical_softmax_loss':
+			scores_class, score_detect, norm_squared_value, h_fc1_value = sess.run([scores, object_score, norm_squared, h_fc1], feed_dict = {labelTensor: [label_inputs_one_hot], imgTensor: [image_input], object_or_not: [object_or_not_input]})
+			object_prediction = 1 - np.argmax(score_detect)
+			if object_prediction == 1:
+				label_prediction = np.argmax(scores_class[:20])
+				obj_num_label_correct += label_prediction == label_index
+
+			else:
+				label_prediction = 20
+		########### Useful for t-SNE ###############
+		prefinal_layer_activations.append(h_fc1_value)
+		ground_truth_labels.append(object_or_not_input)
+		############################################
+
+#######################################$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+		total_num_obj_correct += object_prediction == object_or_not_input
+		total_num_label_correct += label_prediction == label_index
+		print object_or_not_input, object_prediction, label_index, label_prediction, norm_squared_value
 		# print obj_num_label_correct, obj_total
-	print obj_num_label_correct/float(obj_total), total_num_label_correct/float(num_images), total_num_obj_correct/float(num_images)
+	
+	print 'Category classification accuracy, given it is an object = {}'.format(obj_num_label_correct/float(obj_total))
+	print 'Category classification accuracy overall = {}'.format(total_num_label_correct/float(num_images_to_test))
+	print 'Object classification overall = {}'.format(total_num_obj_correct/float(num_images_to_test))
 
-
-
-
+	X = np.array(prefinal_layer_activations)
+	X = np.reshape(X, (-1, X.shape[2]))
+	model = TSNE(n_components=2)
+	X_reduced = model.fit_transform(X)
+	plt.scatter(X_reduced[:,0], X_reduced[:,1], c=ground_truth_labels)
+	plt.savefig(os.path.join(args.SAVED_NETWORKS_PATH, 'tSNE.jpg'))
+	print 'plot saved in {}'.format(args.SAVED_NETWORKS_PATH)
 
 	# num_positive_images = len(positiveImageLabels)
 	# num_negative_images = len(negativeImageLabels)
