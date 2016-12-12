@@ -2,11 +2,12 @@ import tensorflow as tf
 from genericModel import *
 from utils import *
 from nn_utils import weight_variable, bias_variable, conv2d, max_pool_2x2, add_last_layer
-from nn_utils import test_object_detection_spherical_softmax, test_object_detection_softmax
+from nn_utils import test_object_detection_spherical_softmax, test_object_detection_softmax, test_object_detection_spherical_hinge
 import os, sys
 import numpy as np
 from PIL import Image, ImageFile
-ImageFile.LOAD_TRUNCATED_IMAGES = True
+from scipy import misc
+from scipy import ndimage
 from random import shuffle
 import argparse
 import random
@@ -110,11 +111,9 @@ else:
 num_positive_images = len(positiveImageLabels)
 num_negative_images = len(negativeImageLabels)
 
-positive_batch_size = int((1 - args.background_fraction)*args.batch_size)
-negative_batch_size = args.batch_size - positive_batch_size
-
 if args.train_or_test == 'train':
-
+	positive_batch_size = int((1 - args.background_fraction)*args.batch_size)
+	negative_batch_size = args.batch_size - positive_batch_size
 	for epoch_num in range(args.num_epochs):
 		
 		for positive_batch_iter in range(0, num_positive_images, positive_batch_size):
@@ -125,7 +124,7 @@ if args.train_or_test == 'train':
 			object_or_not_inputs = []
 
 			for image_iter in range(positive_start, positive_end):
-				image_input = Image.open(positiveImagePaths[image_iter]).resize((80, 80))		
+				image_input = Image.open(positiveImagePaths[image_iter]).resize((80,80))
 				image_input = image_input.convert('RGB')
 				image_input = np.array(image_input)
 
@@ -164,87 +163,144 @@ if args.train_or_test == 'train':
 			saver.save(sess, args.SAVED_NETWORKS_PATH + '/' + 'weights', global_step = (epoch_num+1)*num_positive_images + checkpoint_IterNum)
 
 elif args.train_or_test == 'test':
-	num_positive_images = len(positiveImageLabels)
-	num_negative_images = len(negativeImageLabels)
-	norm_squared_value_positive = [0 for x in range(num_positive_images)]
-	norm_squared_value_negative = [0 for x in range(num_negative_images)]
-	object_detection_score = 0
-	object_classification_score = 0
-	total_images = num_positive_images + num_negative_images
-	for positive_batch_iter in range(0, args.batch_size, positive_batch_size):
-		positive_start = positive_batch_iter
-		positive_end = min(num_positive_images, positive_batch_iter + positive_batch_size)
-		image_inputs = []
-		label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
-		object_or_not_inputs = []
+	allImagePaths =	np.concatenate((positiveImagePaths, negativeImagePaths))
+	allImageLabels = np.concatenate((positiveImageLabels, negativeImageLabels))
+	num_images = len(allImageLabels)
+	index_arr = range(num_images)
+	random.seed(1)
+	shuffle(index_arr)
 
-		for image_iter in range(positive_start, positive_end):
-			image_input = Image.open(positiveImagePaths[image_iter]).resize((80, 80))		
-			image_input = image_input.convert('RGB')
-			image_input = np.array(image_input)
+	total_num_obj_correct = 0
+	total_num_label_correct = 0
 
-			label_index = positiveImageLabels[image_iter]
+	obj_num_label_correct = 0
+	obj_total = 0
+	for i in range(num_images):
+		index = index_arr[i]
+		image_input = Image.open(allImagePaths[index]).resize((80,80))
+		image_input = image_input.convert('RGB')
+		image_input = np.array(image_input)
 
-			image_inputs.append(image_input)
-			label_inputs_one_hot[image_iter - positive_start, label_index] = 1
-			object_or_not_inputs.append(1)
+		label_index = allImageLabels[index]
+		label_inputs_one_hot = np.zeros(args.class_count)
+		label_inputs_one_hot[label_index] = 1
 
-		if args.sphericalLossType == 'None':
-			scores_class = sess.run([scores], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-			det_score, class_score = test_object_detection_softmax(scores_class, object_or_not_inputs, label_inputs_one_hot)
-		elif args.sphericalLossType == 'spherical_softmax_loss':
-			scores_class, score_detect ,norm_squared_value = sess.run([scores, object_score, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-			det_score, class_score = test_object_detection_spherical_softmax(scores_class, score_detect, object_or_not_inputs, label_inputs_one_hot)
-			norm_squared_value_positive[positive_start:positive_end] = norm_squared_value
-		elif args.sphericalLossType == 'spherical_hinge_loss':
-			score_value ,norm_squared_value = sess.run([scores, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-			det_score, class_score = test_object_detection_spherical_hinge(scores_class, norm_squared_value, object_or_not_inputs, label_inputs_one_hot)
-			norm_squared_value_positive[positive_start:positive_end] = norm_squared_value			
+		if label_index == 20:
+			object_or_not_input = 0
+		else:
+			object_or_not_input = 1
+			obj_total += 1
 
-		object_detection_score += det_score
-		object_classification_score += class_score
+		if args.sphericalLossType == 'spherical_hinge_loss':
+			scores_class, norm_squared_value = sess.run([scores, norm_squared], feed_dict = {labelTensor: [label_inputs_one_hot], imgTensor: [image_input], object_or_not: [object_or_not_input]})
+			if norm_squared_value > 1:
+				object_prediction = 1
+				label_prediction = np.argmax(scores_class[:20])
+				obj_num_label_correct += label_prediction == label_index
+			else:
+				object_prediction = 0
+				label_prediction = 20
 
-	for negative_batch_iter in range(0, args.batch_size, negative_batch_size):
-		negative_start = negative_batch_iter
-		negative_end = min(num_negative_images, negative_batch_iter + negative_batch_size)
-		image_inputs = []
-		label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
-		object_or_not_inputs = []
+			total_num_obj_correct += object_prediction == object_or_not_input
+			total_num_label_correct += label_prediction == label_index
 
-		for image_iter in range(negative_start, negative_end):
-			image_input = Image.open(negativeImagePaths[image_iter]).resize((80,80))
-			image_input = image_input.convert('RGB')
-			image_input = np.array(image_input)
+			# print object_or_not_input, object_prediction, label_index, label_prediction, norm_squared_value
+		# print obj_num_label_correct, obj_total
+	print obj_num_label_correct/float(obj_total), total_num_label_correct/float(num_images), total_num_obj_correct/float(num_images)
 
-			label_index = negativeImageLabels[image_iter]
 
-			image_inputs.append(image_input)
-			label_inputs_one_hot[image_iter - negative_start, label_index] = 1
-			object_or_not_inputs.append(0)
 
-		if args.sphericalLossType == 'None':
-			scores_class = sess.run([scores], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-			det_score, class_score = test_object_detection_softmax(scores_class, object_or_not_inputs, label_inputs_one_hot)
-		elif args.sphericalLossType == 'spherical_softmax_loss':
-			scores_class, score_detect ,norm_squared_value = sess.run([scores, object_score, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-			det_score, class_score = test_object_detection_spherical_softmax(scores_class, score_detect, object_or_not_inputs, label_inputs_one_hot)
-			norm_squared_value_negative[negative_start:negative_end] = norm_squared_value
-		elif args.sphericalLossType == 'spherical_hinge_loss':
-			score_value ,norm_squared_value = sess.run([scores, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-			det_score, class_score = test_object_detection_spherical_hinge(scores_class, norm_squared_value, object_or_not_inputs, label_inputs_one_hot)
-			norm_squared_value_negative[negative_start:negative_end] = norm_squared_value
-		object_detection_score += det_score
-		object_classification_score += class_score
 
-	print object_detection_score, object_classification_score
-	object_detection_score = object_detection_score / float(total_images)
-	object_classification_score = object_classification_score / float(num_positive_images)
 
-	print 'Testing Stats:'
-	print 'object detection score ' + str(object_detection_score)
-	print 'object classification score ' + str(object_classification_score)
-	if args.sphericalLossType != 'None':
-		plt.hist(norm_squared_value_negative, color='g', bins=1000, normed=True, cumulative=True)
-		savefig('negative.png', bbox_inches='tight')
-		plt.hist(norm_squared_value_negative,color='r', bins=1000, normed=True, cumulative=True)
-		savefig('positive.png', bbox_inches='tight')
+	# num_positive_images = len(positiveImageLabels)
+	# num_negative_images = len(negativeImageLabels)
+	# norm_squared_value_positive = [0 for x in range(num_positive_images)]
+	# norm_squared_value_negative = [0 for x in range(num_negative_images)]
+	# object_detection_score = 0
+	# object_classification_score = 0
+	# total_images = num_positive_images + num_negative_images
+	# for positive_batch_iter in range(0, num_positive_images, args.batch_size):
+	# 	positive_start = positive_batch_iter
+	# 	positive_end = min(num_positive_images, positive_batch_iter + args.batch_size)
+	# 	image_inputs = []
+	# 	label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
+	# 	object_or_not_inputs = []
+
+	# 	for image_iter in range(positive_start, positive_end):
+	# 		image_input = Image.open(positiveImagePaths[image_iter]).resize((80, 80))		
+	# 		image_input = image_input.convert('RGB')
+	# 		image_input = np.array(image_input)
+
+	# 		label_index = positiveImageLabels[image_iter]
+
+	# 		image_inputs.append(image_input)
+	# 		label_inputs_one_hot[image_iter - positive_start, label_index] = 1
+	# 		object_or_not_inputs.append(1)
+
+	# 	if args.sphericalLossType == 'None':
+	# 		scores_class = sess.run([scores], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+	# 		det_score, class_score = test_object_detection_softmax(scores_class, object_or_not_inputs, label_inputs_one_hot)
+	# 	elif args.sphericalLossType == 'spherical_softmax_loss':
+	# 		scores_class, score_detect, norm_squared_value = sess.run([scores, object_score, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+	# 		det_score, class_score = test_object_detection_spherical_softmax(scores_class, score_detect, object_or_not_inputs, label_inputs_one_hot)
+	# 		norm_squared_value_positive[positive_start:positive_end] = norm_squared_value
+	# 	elif args.sphericalLossType == 'spherical_hinge_loss':
+	# 		# print(label_inputs_one_hot)
+	# 		# print(object_or_not_inputs)
+	# 		# print(sum(sum(sum(image_inputs))))
+	# 		scores_class ,norm_squared_value = sess.run([scores, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+	# 		det_score, class_score = test_object_detection_spherical_hinge(scores_class, norm_squared_value, object_or_not_inputs, label_inputs_one_hot)
+	# 		norm_squared_value_positive[positive_start:positive_end] = norm_squared_value			
+
+	# 	object_detection_score += det_score
+	# 	object_classification_score += class_score
+	# 	break
+
+	# for negative_batch_iter in range(0, num_negative_images, args.batch_size):
+	# 	negative_start = negative_batch_iter
+	# 	negative_end = min(num_negative_images, negative_batch_iter + args.batch_size)
+	# 	image_inputs = []
+	# 	label_inputs_one_hot = np.zeros((args.batch_size, args.class_count))
+	# 	object_or_not_inputs = []
+
+	# 	for image_iter in range(negative_start, negative_end):
+	# 		image_input = Image.open(negativeImagePaths[image_iter]).resize((80,80))
+	# 		image_input = image_input.convert('RGB')
+	# 		image_input = np.array(image_input)
+
+	# 		label_index = negativeImageLabels[image_iter]
+
+	# 		image_inputs.append(image_input)
+	# 		label_inputs_one_hot[image_iter - negative_start, label_index] = 1
+	# 		object_or_not_inputs.append(0)
+
+	# 	if args.sphericalLossType == 'None':
+	# 		scores_class = sess.run([scores], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+	# 		det_score, class_score = test_object_detection_softmax(scores_class, object_or_not_inputs, label_inputs_one_hot)
+	# 	elif args.sphericalLossType == 'spherical_softmax_loss':
+	# 		scores_class, score_detect ,norm_squared_value = sess.run([scores, object_score, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+	# 		det_score, class_score = test_object_detection_spherical_softmax(scores_class, score_detect, object_or_not_inputs, label_inputs_one_hot)
+	# 		norm_squared_value_negative[negative_start:negative_end] = norm_squared_value
+	# 	elif args.sphericalLossType == 'spherical_hinge_loss':
+	# 		# print(label_inputs_one_hot)
+	# 		# print(object_or_not_inputs)
+	# 		# print(sum(sum(sum(image_inputs))))
+	# 		scores_class ,norm_squared_value = sess.run([scores, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+	# 		det_score, class_score = test_object_detection_spherical_hinge(scores_class, norm_squared_value, object_or_not_inputs, label_inputs_one_hot)
+	# 		norm_squared_value_negative[negative_start:negative_end] = norm_squared_value
+	# 	object_detection_score += det_score
+	# 	object_classification_score += class_score
+	# 	break
+
+	# print object_detection_score, object_classification_score
+	# object_detection_score = object_detection_score / float(total_images)
+	# object_classification_score = object_classification_score / float(num_positive_images)
+
+	# print 'Testing Stats:'
+	# print 'object detection score ' + str(object_detection_score)
+	# print 'object classification score ' + str(object_classification_score)
+	# if args.sphericalLossType != 'None':
+	# 	plt.hist(norm_squared_value_negative, color='g', bins=1000, normed=True, cumulative=True)
+	# 	savefig('negative.png', bbox_inches='tight')
+	# 	plt.hist(norm_squared_value_negative,color='r', bins=1000, normed=True, cumulative=True)
+	# 	savefig('positive.png', bbox_inches='tight')

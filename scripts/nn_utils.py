@@ -73,27 +73,38 @@ def knowledge_distillation_loss(soft_new, soft_old=None, T=2):
 
 def test_object_detection_spherical_softmax(scores_class, score_object, object_or_not, label_inputs_one_hot):
 	test_obj_or_not_neg = np.argmax(score_object, 1)
-	test_obj_or_not = tf.sub(tf.ones_like(test_obj_or_not_neg), test_obj_or_not_neg)
+	print(score_object)
+	test_obj_or_not = np.subtract(np.ones_like(test_obj_or_not_neg), test_obj_or_not_neg)
+	print(test_obj_or_not)
 	object_labels = np.argmax(label_inputs_one_hot, 1)
-	test_object_labels = np.argmax(scores_class[:][0:20], 1) 
-	object_detect_vector = test_obj_or_not == object_or_not
+	test_object_labels = np.argmax(scores_class[:][0:20], 1)
+	print(test_object_labels) 
+	object_detect_vector = [int(x) for x in test_obj_or_not == object_or_not]
+	print(object_detect_vector)
 	object_detection_score = np.sum(object_detect_vector) 
 	
-	object_classification_vector = np.multiply(test_object_labels == object_labels,\
+	object_classification_vector = np.multiply([int(x) for x in test_object_labels == object_labels],\
 		np.multiply(object_detect_vector, object_or_not))
 	object_classification_score = np.sum(object_classification_vector)
 	return object_detection_score, object_classification_score
 
 def test_object_detection_spherical_hinge(scores_class, norm_squared, object_or_not, label_inputs_one_hot):
-	test_obj_or_not_neg = norm_squared >= 1
-	test_obj_or_not = tf.sub(tf.ones_like(test_obj_or_not_neg), test_obj_or_not_neg)
+	test_obj_or_not = [int(x) for x in norm_squared >= 1]
+	print(norm_squared)
+	# test_obj_or_not = np.subtract(np.ones_like(test_obj_or_not_neg), test_obj_or_not_neg)
 	object_labels = np.argmax(label_inputs_one_hot, 1)
 	test_object_labels = np.argmax(scores_class[:][0:20], 1) 
-	object_detect_vector = test_obj_or_not == object_or_not
-	object_detection_score = np.sum(object_detect_vector) 
-	
-	object_classification_vector = np.multiply(test_object_labels == object_labels,\
+	object_detect_vector = [int(x) for x in np.equal(test_obj_or_not, object_or_not)]
+	object_detection_score = np.sum(object_detect_vector)
+	# print(object_detect_vector) 
+	# print(test_obj_or_not)
+	# print(object_or_not)
+	print(scores_class)
+	print(object_labels)
+	print(test_object_labels)
+	object_classification_vector = np.multiply([int(x) for x in np.equal(test_object_labels,object_labels)],\
 		np.multiply(object_detect_vector, object_or_not))
+	print(object_classification_vector)
 	object_classification_score = np.sum(object_classification_vector)
 	return object_detection_score, object_classification_score
 
