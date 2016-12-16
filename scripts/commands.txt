@@ -1,22 +1,33 @@
 Some commands
 
+ON CPU
+
 1. For generating regions
 
  python generateRegionCrops.py --MAINFILE_PATH '/Users/vishakhhegde/ObjectDetection' --image_dir '/Users/vishakhhegde/ObjectDetection/VOCdevkit/VOC2012/JPEGImages' --negative_cropped_image_dir '/Users/vishakhhegde/ObjectDetection/VOCNegativeCropsTrial' --positive_cropped_image_dir '/Users/vishakhhegde/ObjectDetection/VOCPositiveCropsTrial' --positiveImages_path_textfile 'VOCPositiveCropsTrial.txt' --negativeImages_path_textfile 'VOCNegativeCropsTrial.txt' --xmlFiles_dir '/Users/vishakhhegde/ObjectDetection/VOCdevkit/VOC2012/Annotations' --selectiveSearchFile '/Users/vishakhhegde/ObjectDetection/selective_search_data/voc_2012_train.mat'
 
-2. For training the neural network
+
 
 python training.py --MAINFILE_PATH '/Users/vishakhhegde/ObjectDetection' --batch_size 64 --num_epochs 1000 --positiveImagesDirName 'VOCPositiveCrops' --negativeImagesDirName 'VOCNegativeCrops' --SAVED_NETWORKS_PATH '/Users/vishakhhegde/ObjectDetection/scripts/Net3'
 
 
 On GPU
 
+1. For generating regions
+
 python generateRegionCrops.py --MAINFILE_PATH '/home/ubuntu/ObjectDetection' --image_dir '/home/ubuntu/ObjectDetection/VOCdevkit/VOC2012/JPEGImages' --negative_cropped_image_dir '/home/ubuntu/ObjectDetection/VOCNegativeCropsTrial' --positive_cropped_image_dir '/home/ubuntu/ObjectDetection/VOCPositiveCropsTrial' --positiveImages_path_textfile 'VOCPositiveCropsTrial.txt' --negativeImages_path_textfile 'VOCNegativeCropsTrial.txt' --xmlFiles_dir '/home/ubuntu/ObjectDetection/VOCdevkit/VOC2012/Annotations' --selectiveSearchFile '/home/ubuntu/ObjectDetection/selective_search_data/voc_2012_train.mat'
 
+2. For training the neural network
 
 Train Script Example
-python training.py --MAINFILE_PATH '/home/ubuntu/ObjectDetection' --batch_size 64 --num_epochs 1000 --positiveImagesDirName 'VOCPositiveCropsTrainBig' --negativeImagesDirName 'VOCNegativeCropsTrainBigCut' --SAVED_NETWORKS_PATH '/tmp/SphericalHingeLoss3' --positiveImages_path_textfile 'VOCPositiveCropsTrainBig.txt' --negativeImages_path_textfile 'VOCNegativeCropsTrainBigCut.txt' --background_fraction 0.2 --learning_rate 0.00001 --lamb 1.0 --GPUFrac 0.9 --sphericalLossType 'spherical_hinge_loss' --train_or_test 'train'
+python training.py --MAINFILE_PATH '/home/ubuntu/ObjectDetection' --batch_size 32 --num_epochs 25 --positiveImagesDirName 'VOCPositiveCropsTrainBig' --negativeImagesDirName 'VOCNegativeCropsTrainBigCut' --SAVED_NETWORKS_PATH '/tmp/Trial' --positiveImages_path_textfile 'VOCPositiveCropsTrainBig.txt' --negativeImages_path_textfile 'VOCNegativeCropsTrainBigCut.txt' --background_fraction 0.2 --learning_rate 0.00005 --lamb 1.0 --GPUFrac 0.99 --sphericalLossType 'spherical_softmax_loss' --train_or_test 'train'
 
+python training.py --MAINFILE_PATH '/home/ubuntu/ObjectDetection' --batch_size 32 --num_epochs 25 --positiveImagesDirName 'VOCPositiveCropsTrainVeryBig' --negativeImagesDirName 'VOCNegativeCropsTrainBigCut' --SAVED_NETWORKS_PATH '/tmp/AlexNetSphericalHingeLossLWF1' --positiveImages_path_textfile 'VOCPositiveCropsTrainVeryBig.txt' --negativeImages_path_textfile 'VOCNegativeCropsTrainBigCut.txt' --background_fraction 0.2 --learning_rate 0.00001 --lamb1 1.0 --lamb2 1.0 --GPUFrac 0.45 --sphericalLossType 'spherical_hinge_loss' --train_or_test 'train'
 
-Test Script Example
-python training.py --MAINFILE_PATH '/home/ubuntu/ObjectDetection' --batch_size 64 --num_epochs 1000 --positiveImagesDirName 'VOCPositiveCropsValBig' --negativeImagesDirName 'VOCNegativeCropsValBigCut' --SAVED_NETWORKS_PATH '/tmp/SphericalHingeLoss2' --positiveImages_path_textfile 'VOCPositiveCropsValBig.txt' --negativeImages_path_textfile 'VOCNegativeCropsValBigCut.txt' --background_fraction 0.2 --learning_rate 0.00001 --lamb 1.0 --GPUFrac 0.9 --sphericalLossType 'spherical_hinge_loss' --train_or_test 'test'
+3. For testing the neural network
+
+Test Script Example:
+
+python training.py --MAINFILE_PATH '/home/ubuntu/ObjectDetection' --batch_size 64 --num_epochs 1000 --positiveImagesDirName 'VOCPositiveCropsValBig' --negativeImagesDirName 'VOCNegativeCropsValBigCut' --SAVED_NETWORKS_PATH '/tmp/AlexNetRegularSoftMax1' --positiveImages_path_textfile 'VOCPositiveCropsValBig.txt' --negativeImages_path_textfile 'VOCNegativeCropsValBigCut.txt' --background_fraction 0.2 --learning_rate 0.00001 --lamb 1.0 --GPUFrac 0.9 --sphericalLossType 'None' --train_or_test 'test'
+
+python training.py --MAINFILE_PATH '/home/ubuntu/ObjectDetection' --batch_size 64 --num_epochs 1000 --positiveImagesDirName 'VOCPositiveCropsTrainBig' --negativeImagesDirName 'VOCNegativeCropsTrainBigCut' --SAVED_NETWORKS_PATH '/tmp/RegularSoftmax2' --positiveImages_path_textfile 'VOCPositiveCropsTrainBig.txt' --negativeImages_path_textfile 'VOCNegativeCropsTrainBigCut.txt' --background_fraction 0.2 --learning_rate 0.00001 --lamb 1.0 --GPUFrac 0.9 --sphericalLossType 'None' --train_or_test 'test'
