@@ -341,7 +341,7 @@ class generic_model():
 
 		return object_or_not, labelTensor, x, scores, fc7
 
-	def build_graph_for_target(self, sess, labelTensor, scores, h_fc1, object_or_not, learning_rate, lamb, sphericalLossType, I_hfc1):
+	def build_graph_for_target(self, sess, labelTensor, scores, h_fc1, object_or_not, learning_rate, lamb1, lamb2, sphericalLossType, I_hfc1):
 
 		if sphericalLossType != 'None':
 			cross_entropy = tf.reduce_mean(tf.mul(tf.nn.softmax_cross_entropy_with_logits(scores, labelTensor), object_or_not))
@@ -355,9 +355,7 @@ class generic_model():
 
 			kd_loss = knowledge_distillation_loss(h_fc1, I_hfc1)
 
-			lamb2 = 0.0001
-
-			total_loss = tf.add(tf.add(cross_entropy,tf.scalar_mul(lamb, sphere_loss)), tf.scalar_mul(lamb2, kd_loss))
+			total_loss = tf.add(tf.add(cross_entropy,tf.scalar_mul(lamb1, sphere_loss)), tf.scalar_mul(lamb2, kd_loss))
 			train_step = tf.train.AdamOptimizer(learning_rate).minimize(total_loss)
 			
 			return cross_entropy, sphere_loss, train_step, norm_squared, object_score

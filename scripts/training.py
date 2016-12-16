@@ -25,7 +25,8 @@ def parse_args():
 	parser.add_argument('--background_fraction', type=float, default= 0.2)
 	parser.add_argument('--class_count', type=int, default=21)
 	parser.add_argument('--learning_rate', type=float, default = 1e-5)
-	parser.add_argument('--lamb', type=float, default=1.0)
+	parser.add_argument('--lamb1', type=float, default=1.0)
+	parser.add_argument('--lamb2', type=float, default=1.0)
 	parser.add_argument('--GPUFrac', type=float)
 	parser.add_argument('--sphericalLossType', type=str)
 	parser.add_argument('--train_or_test', type=str, default='train')
@@ -43,7 +44,8 @@ def parse_args():
 	params_file.write('background_fraction: {}\n'.format(args.background_fraction))
 	params_file.write('Class count: {}\n'.format(args.class_count))
 	params_file.write('Learning rate: {}\n'.format(args.learning_rate))
-	params_file.write('lambda: {}\n'.format(args.lamb))
+	params_file.write('lambda1: {}\n'.format(args.lamb1))
+	params_file.write('lambda2: {}\n'.format(args.lamb2))
 	params_file.write('GPU Frac Used: {}\n'.format(args.GPUFrac))
 	params_file.write('Spherical Loss used: {}\n'.format(args.sphericalLossType))
 	params_file.close()
@@ -84,11 +86,11 @@ I_object_or_not, I_labelTensor, I_imgTensor, I_scores, I_h_fc1 = Model.build_gra
 if args.sphericalLossType == 'None':
 	print 'Training Simple softmax classifier on all object classes plus background class'
 	cross_entropy, train_step = Model.build_graph_for_target(sess, labelTensor, scores, \
-													h_fc1, object_or_not, args.learning_rate, args.lamb, args.sphericalLossType, I_h_fc1)
+													h_fc1, object_or_not, args.learning_rate, args.lamb1, args.lamb2, args.sphericalLossType, I_h_fc1)
 else:
 	print 'Training with spherical loss of type {}'.format(args.sphericalLossType)
 	cross_entropy, sphere_loss, train_step, norm_squared, object_score = Model.build_graph_for_target(sess, labelTensor, scores, \
-													h_fc1, object_or_not, args.learning_rate, args.lamb, args.sphericalLossType, I_h_fc1)
+													h_fc1, object_or_not, args.learning_rate, args.lamb1, args.lamb2, args.sphericalLossType, I_h_fc1)
 
 #######################################################################################
 
