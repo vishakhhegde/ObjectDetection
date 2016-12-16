@@ -56,6 +56,7 @@ def get_all_paths_and_labels(textFilePath, ImagesDirName):
 
 	allLines = f.readlines()
 	index_shuff = range(len(allLines))
+	random.seed(2)
 	shuffle(index_shuff)
 
 	for i in index_shuff:
@@ -78,15 +79,16 @@ sess = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
 
 Model = generic_model(args.class_count)
 object_or_not, labelTensor, imgTensor, scores, h_fc1 = Model.build_basic_graph(sess)
+I_object_or_not, I_labelTensor, I_imgTensor, I_scores, I_h_fc1 = Model.build_graph_forLwF(sess)
 
 if args.sphericalLossType == 'None':
 	print 'Training Simple softmax classifier on all object classes plus background class'
 	cross_entropy, train_step = Model.build_graph_for_target(sess, labelTensor, scores, \
-													h_fc1, object_or_not, args.learning_rate, args.lamb, args.sphericalLossType)
+													h_fc1, object_or_not, args.learning_rate, args.lamb, args.sphericalLossType, I_h_fc1)
 else:
 	print 'Training with spherical loss of type {}'.format(args.sphericalLossType)
 	cross_entropy, sphere_loss, train_step, norm_squared, object_score = Model.build_graph_for_target(sess, labelTensor, scores, \
-													h_fc1, object_or_not, args.learning_rate, args.lamb, args.sphericalLossType)
+													h_fc1, object_or_not, args.learning_rate, args.lamb, args.sphericalLossType, I_h_fc1)
 
 #######################################################################################
 
@@ -123,7 +125,7 @@ if args.train_or_test == 'train':
 			object_or_not_inputs = []
 
 			for image_iter in range(positive_start, positive_end):
-				image_input = Image.open(positiveImagePaths[image_iter]).resize((80,80))
+				image_input = Image.open(positiveImagePaths[image_iter]).resize((227,227))
 				image_input = image_input.convert('RGB')
 				image_input = np.array(image_input)
 
@@ -135,7 +137,7 @@ if args.train_or_test == 'train':
 
 			negative_minibatch = random.sample(range(num_negative_images), args.batch_size - (positive_end - positive_start))
 			for i, index in enumerate(negative_minibatch):
-				image_input = Image.open(negativeImagePaths[index]).resize((80,80))
+				image_input = Image.open(negativeImagePaths[index]).resize((227,227))
 				image_input = image_input.convert('RGB')
 				image_input = np.array(image_input)
 
@@ -145,20 +147,21 @@ if args.train_or_test == 'train':
 				label_inputs_one_hot[positive_end - positive_start + i, label_index] = 1
 				object_or_not_inputs.append(0)
 
-			train_step.run(feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+			train_step.run(feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, I_imgTensor: image_inputs, object_or_not: object_or_not_inputs})
 			if args.sphericalLossType == 'None':
 				cross_entropy_value = sess.run([cross_entropy], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
+				print cross_entropy_value
 				
 			else:
 				h_fc1_value, cross_entropy_value, sphere_loss_value, norm_squared_value = sess.run([h_fc1, cross_entropy, sphere_loss, norm_squared], feed_dict = {labelTensor: label_inputs_one_hot, imgTensor: image_inputs, object_or_not: object_or_not_inputs})
-				
+				print cross_entropy_value
 				
 		if args.sphericalLossType == 'None':
 			print 'epoch number: {}'.format(epoch_num) +' done with training cross entropy loss = ' + str(cross_entropy_value)
 		else:
 			print 'epoch number: {}'.format(epoch_num) +' done with training cross entropy loss = ' + str(cross_entropy_value) + ' and with training hinge loss = ' + str(sphere_loss_value)	
 
-		if epoch_num % 10 == 0:
+		if epoch_num % 2 == 0:
 			saver.save(sess, args.SAVED_NETWORKS_PATH + '/' + 'weights', global_step = (epoch_num+1)*num_positive_images + checkpoint_IterNum)
 
 ######################################################################################################################
@@ -168,6 +171,7 @@ elif args.train_or_test == 'test':
 	allImageLabels = np.concatenate((positiveImageLabels, negativeImageLabels))
 	num_images = len(allImageLabels)
 	index_arr = range(num_images)
+	
 	random.seed(1)
 	shuffle(index_arr)
 
@@ -177,14 +181,15 @@ elif args.train_or_test == 'test':
 	obj_num_label_correct = 0
 	obj_total = 0
 
-	num_images_to_test = 1000
+	num_images_to_test = 10000
 
 	prefinal_layer_activations = []
 	ground_truth_labels = []
+	norm_squared_spherical = []
 
 	for i in range(num_images_to_test):
 		index = index_arr[i]
-		image_input = Image.open(allImagePaths[index]).resize((80,80))
+		image_input = Image.open(allImagePaths[index]).resize((227,227))
 		image_input = image_input.convert('RGB')
 		image_input = np.array(image_input)
 
@@ -202,7 +207,8 @@ elif args.train_or_test == 'test':
 
 		if args.sphericalLossType == 'spherical_hinge_loss':
 			scores_class, norm_squared_value, h_fc1_value = sess.run([scores, norm_squared, h_fc1], feed_dict = {labelTensor: [label_inputs_one_hot], imgTensor: [image_input], object_or_not: [object_or_not_input]})
-
+			norm_squared_value = norm_squared_value[0][0]
+			norm_squared_spherical.append(norm_squared_value)
 			if norm_squared_value > 1:
 				object_prediction = 1
 				label_prediction = np.argmax(scores_class[:20])
@@ -222,6 +228,8 @@ elif args.train_or_test == 'test':
 
 		elif args.sphericalLossType == 'spherical_softmax_loss':
 			scores_class, score_detect, norm_squared_value, h_fc1_value = sess.run([scores, object_score, norm_squared, h_fc1], feed_dict = {labelTensor: [label_inputs_one_hot], imgTensor: [image_input], object_or_not: [object_or_not_input]})
+			norm_squared_value = norm_squared_value[0][0]
+			norm_squared_spherical.append(norm_squared_value)
 			object_prediction = 1 - np.argmax(score_detect)
 			if object_prediction == 1:
 				label_prediction = np.argmax(scores_class[:20])
@@ -229,28 +237,42 @@ elif args.train_or_test == 'test':
 
 			else:
 				label_prediction = 20
-		########### Useful for t-SNE ###############
+		########### Useful for t-SNE ##################
 		prefinal_layer_activations.append(h_fc1_value)
 		ground_truth_labels.append(object_or_not_input)
-		############################################
+		###############################################
 
 #######################################$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 		total_num_obj_correct += object_prediction == object_or_not_input
 		total_num_label_correct += label_prediction == label_index
-		print object_or_not_input, object_prediction, label_index, label_prediction, norm_squared_value
+		# print object_or_not_input, object_prediction, label_index, label_prediction, norm_squared_value
 		# print obj_num_label_correct, obj_total
-	
+	print obj_total
 	print 'Category classification accuracy, given it is an object = {}'.format(obj_num_label_correct/float(obj_total))
 	print 'Category classification accuracy overall = {}'.format(total_num_label_correct/float(num_images_to_test))
 	print 'Object classification overall = {}'.format(total_num_obj_correct/float(num_images_to_test))
 
 	X = np.array(prefinal_layer_activations)
 	X = np.reshape(X, (-1, X.shape[2]))
-	model = TSNE(n_components=2)
+	model = TSNE(n_components=2, perplexity = 100, n_iter=2000, learning_rate = 500)
 	X_reduced = model.fit_transform(X)
 	plt.scatter(X_reduced[:,0], X_reduced[:,1], c=ground_truth_labels)
 	plt.savefig(os.path.join(args.SAVED_NETWORKS_PATH, 'tSNE.jpg'))
-	print 'plot saved in {}'.format(args.SAVED_NETWORKS_PATH)
+	print 'tSNE plot saved in {}'.format(args.SAVED_NETWORKS_PATH)
+
+	plt.clf()
+
+	norm_objects = [x[1] for x in zip(ground_truth_labels, norm_squared_spherical) if x[0] == 1]
+	norm_background = [x[1] for x in zip(ground_truth_labels, norm_squared_spherical) if x[0] == 0]
+	norm_histogram = [norm_objects, norm_background]
+	if args.sphericalLossType != 'None':
+		plt.hist(norm_objects, color = 'red', bins = 100, normed=1, histtype='stepfilled', cumulative=True)
+		plt.hist(norm_background, color = 'green', bins = 100, normed=1, histtype='stepfilled', cumulative=True)
+		plt.xscale('log')
+		plt.yscale('log')
+		plt.savefig(os.path.join(args.SAVED_NETWORKS_PATH, 'histogram.jpg'))
+
+		print 'Histogram plot saved in {}'.format(args.SAVED_NETWORKS_PATH)	
 
 	# num_positive_images = len(positiveImageLabels)
 	# num_negative_images = len(negativeImageLabels)
