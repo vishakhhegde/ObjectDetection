@@ -17,5 +17,9 @@ However, since background forms a significant part of most natural images (in ma
 
 Our classification pipeline is novel, in the sense that we introduce a spherical hinge loss which forces the embedding (or features) of non-objects to have a norm zero. On the other hand, it forces the features of objects to have a unit norm. Another way to look at this is that our neural network only activates when it sees and object and does not activate for background regions.
 
+This was part of a seminar course on representation learning. We have a report for it. Can be accessed at: https://www.dropbox.com/s/21ny6hoeb1zbdqw/project-report-331b.pdf?dl=0
+
+If you find any bugs in the code, or are not clear about the highlevel idea of this project, please get in touch with me!
+
 More updates coming soon! Stay tuned!
 
