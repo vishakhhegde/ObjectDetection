@@ -21,5 +21,5 @@ This was part of a seminar course on representation learning. We have a report f
 
 If you find any bugs in the code, or are not clear about the highlevel idea of this project, please get in touch with me!
 
-More updates coming soon! Stay tuned!
+I will be working on making the code more readable. More updates coming soon! Stay tuned!
 
